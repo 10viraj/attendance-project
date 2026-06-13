@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator, StatusBar, Alert, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, TextInput, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalendarDaysIcon, DocumentTextIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../config/api';
 
 const LEAVE_TYPES = ['Casual', 'Sick', 'Earned'];
@@ -17,6 +19,12 @@ const LeaveScreen = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+
+  // DatePicker State
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [tempStartDate, setTempStartDate] = useState(new Date());
+  const [tempEndDate, setTempEndDate] = useState(new Date());
 
   const loadLeaves = async () => {
     setLoading(true);
@@ -40,6 +48,22 @@ const LeaveScreen = () => {
       loadLeaves();
     }, [])
   );
+
+  const onStartChange = (event, selectedDate) => {
+    setShowStartPicker(false);
+    if (selectedDate) {
+      setTempStartDate(selectedDate);
+      setStartDate(selectedDate.toISOString().split('T')[0]);
+    }
+  };
+
+  const onEndChange = (event, selectedDate) => {
+    setShowEndPicker(false);
+    if (selectedDate) {
+      setTempEndDate(selectedDate);
+      setEndDate(selectedDate.toISOString().split('T')[0]);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!startDate || !endDate || !reason) {
@@ -110,23 +134,43 @@ const LeaveScreen = () => {
             <View style={styles.rowInputs}>
               <View style={styles.halfInput}>
                 <Text style={styles.inputLabel}>Start Date</Text>
-                <TextInput 
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94a3b8"
-                  value={startDate}
-                  onChangeText={setStartDate}
-                />
+                <TouchableOpacity 
+                  style={[styles.input, { justifyContent: 'center' }]} 
+                  onPress={() => setShowStartPicker(true)}
+                >
+                  <Text style={{ color: startDate ? '#334155' : '#94a3b8' }}>
+                    {startDate || 'Select Date'}
+                  </Text>
+                </TouchableOpacity>
+                {showStartPicker && (
+                  <DateTimePicker
+                    value={tempStartDate}
+                    mode="date"
+                    display="default"
+                    onChange={onStartChange}
+                  />
+                )}
               </View>
+              
               <View style={styles.halfInput}>
                 <Text style={styles.inputLabel}>End Date</Text>
-                <TextInput 
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94a3b8"
-                  value={endDate}
-                  onChangeText={setEndDate}
-                />
+                <TouchableOpacity 
+                  style={[styles.input, { justifyContent: 'center' }]} 
+                  onPress={() => setShowEndPicker(true)}
+                >
+                  <Text style={{ color: endDate ? '#334155' : '#94a3b8' }}>
+                    {endDate || 'Select Date'}
+                  </Text>
+                </TouchableOpacity>
+                {showEndPicker && (
+                  <DateTimePicker
+                    value={tempEndDate}
+                    mode="date"
+                    display="default"
+                    onChange={onEndChange}
+                    minimumDate={tempStartDate}
+                  />
+                )}
               </View>
             </View>
 

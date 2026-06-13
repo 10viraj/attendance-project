@@ -31,26 +31,17 @@ const RegisterScreen = ({ navigation }) => {
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || 'User';
       
-      // Auto-generate employee ID
-      const employeeId = `EMP-${Math.floor(Math.random() * 90000) + 10000}`;
-
       const response = await api.post('/auth/register', {
         firstName,
         lastName,
         email,
         password,
-        role: 'Employee',
-        employeeId
+        role: 'Employee'
       });
 
       if (response.data && response.data.token) {
-        await AsyncStorage.setItem('userToken', response.data.token);
-        await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
-        if (response.data.employee) {
-          await AsyncStorage.setItem('employeeInfo', JSON.stringify(response.data.employee));
-        }
-        
-        navigation.replace('Main');
+        Alert.alert('Success', 'Registration successful! Please login.');
+        navigation.navigate('Login');
       }
     } catch (error) {
       console.error('Register Error:', error.response?.data || error.message);

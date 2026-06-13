@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ActivityIndicator, StatusBar, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraIcon, ArrowRightOnRectangleIcon, ClockIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';

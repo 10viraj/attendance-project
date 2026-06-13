@@ -24,13 +24,10 @@ const LoginScreen = ({ navigation }) => {
       });
 
       if (response.data && response.data.token) {
-        // If the user is an Admin, prevent mobile login and direct them to the web portal
         if (response.data.user.role === 'Admin') {
-          setLoading(false);
-          Alert.alert(
-            'Admin Account', 
-            'The mobile app is for employees only. Please use the React Web Portal on your computer to access the Admin Dashboard.'
-          );
+          await AsyncStorage.setItem('userToken', response.data.token);
+          await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
+          navigation.replace('AdminMain');
           return;
         }
 

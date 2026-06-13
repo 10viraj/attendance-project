@@ -96,7 +96,22 @@ const deleteEmployee = async (req, res, next) => {
       throw new Error('Employee not found');
     }
 
-    await User.findByIdAndDelete(employee.user);
+    // Import models inline to avoid circular dependencies if any, or just at top. Let's require them here safely.
+    const Attendance = require('../models/Attendance');
+    const Leave = require('../models/Leave');
+
+    // Delete associated User account
+    if (employee.user) {
+      await User.findByIdAndDelete(employee.user);
+    }
+    
+    // Delete all attendance records for this employee
+    await Attendance.deleteMany({ employee: req.params.id });
+    
+    // Delete all leave records for this employee
+    await Leave.deleteMany({ employee: req.params.id });
+
+    // Finally delete the employee profile
     await Employee.findByIdAndDelete(req.params.id);
 
     res.json({ success: true, data: {} });
@@ -113,10 +128,16 @@ const updateMyProfile = async (req, res, next) => {
     // Restrict what fields can be updated
     const { firstName, lastName, phone, address } = req.body;
     
+    const updateFields = {};
+    if (firstName !== undefined) updateFields.firstName = firstName;
+    if (lastName !== undefined) updateFields.lastName = lastName;
+    if (phone !== undefined) updateFields.phone = phone;
+    if (address !== undefined) updateFields.address = address;
+
     const employee = await Employee.findOneAndUpdate(
       { user: req.user._id },
-      { firstName, lastName, phone, address },
-      { new: true, runValidators: true }
+      { $set: updateFields },
+      { new: true } // runValidators: false allows partial/empty updates if desired
     );
 
     if (!employee) {
