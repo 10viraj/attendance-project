@@ -25,7 +25,7 @@ const attendanceSchema = new mongoose.Schema({
     },
     verificationMethod: {
       type: String,
-      enum: ['QR', 'Face', 'Manual'],
+      enum: ['QR', 'Face', 'Fingerprint', 'Manual'],
       required: true
     },
     photoUrl: String // In case of face verification fallback
@@ -44,7 +44,7 @@ const attendanceSchema = new mongoose.Schema({
     },
     verificationMethod: {
       type: String,
-      enum: ['QR', 'Face', 'Manual']
+      enum: ['QR', 'Face', 'Fingerprint', 'Manual']
     }
   },
   status: {
@@ -67,6 +67,16 @@ const attendanceSchema = new mongoose.Schema({
   isEarlyExit: {
     type: Boolean,
     default: false
+  },
+  breaks: [{
+    startTime: Date,
+    endTime: Date,
+    durationMinutes: Number
+  }],
+  workType: {
+    type: String,
+    enum: ['Office', 'WFH', 'Client Site'],
+    default: 'Office'
   }
 }, { timestamps: true });
 

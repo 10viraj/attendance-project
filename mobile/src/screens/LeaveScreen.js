@@ -7,10 +7,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../config/api';
 
-const LEAVE_TYPES = ['Casual', 'Sick', 'Earned'];
+const LEAVE_TYPES = ['Casual', 'Sick', 'Earned', 'Comp Off'];
 
 const LeaveScreen = () => {
-  const [leaves, setLeaves] = useState([]);
+  const [activeTab, setActiveTab] = useState('Leave');
+  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -26,18 +27,19 @@ const LeaveScreen = () => {
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
 
-  const loadLeaves = async () => {
+  const loadData = async (tab) => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) return;
 
-      const res = await api.get('/leaves', {
+      const endpoint = tab === 'Leave' ? '/leaves' : '/wfh';
+      const res = await api.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setLeaves(res.data.data || []);
+      setRecords(res.data.data || []);
     } catch (error) {
-      console.error('Error loading leaves:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
@@ -45,8 +47,8 @@ const LeaveScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      loadLeaves();
-    }, [])
+      loadData(activeTab);
+    }, [activeTab])
   );
 
   const onStartChange = (event, selectedDate) => {
@@ -74,18 +76,19 @@ const LeaveScreen = () => {
     setSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
-      const payload = { type, startDate, endDate, reason };
+      const payload = activeTab === 'Leave' ? { type, startDate, endDate, reason } : { startDate, endDate, reason };
+      const endpoint = activeTab === 'Leave' ? '/leaves' : '/wfh';
       
-      const res = await api.post('/leaves', payload, {
+      const res = await api.post(endpoint, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (res.data.success) {
-        Alert.alert('Success', 'Leave application submitted successfully!');
+        Alert.alert('Success', `${activeTab} application submitted successfully!`);
         setStartDate('');
         setEndDate('');
         setReason('');
-        loadLeaves();
+        loadData(activeTab);
       }
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to submit application');
@@ -109,27 +112,48 @@ const LeaveScreen = () => {
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Leave Management</Text>
+          <Text style={styles.headerTitle}>Requests</Text>
+        </View>
+
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'Leave' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('Leave')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, activeTab === 'Leave' && styles.tabTextActive]}>Leave</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tabButton, activeTab === 'WFH' && styles.tabButtonActive]}
+            onPress={() => setActiveTab('WFH')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, activeTab === 'WFH' && styles.tabTextActive]}>Work From Home</Text>
+          </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
           {/* Apply Form Card */}
           <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Apply for Leave</Text>
+            <Text style={styles.sectionTitle}>Apply for {activeTab}</Text>
             
-            <Text style={styles.inputLabel}>Leave Type</Text>
-            <View style={styles.typeContainer}>
-              {LEAVE_TYPES.map((t) => (
-                <TouchableOpacity 
-                  key={t}
-                  style={[styles.typeButton, type === t && styles.typeButtonActive]}
-                  onPress={() => setType(t)}
-                >
-                  <Text style={[styles.typeText, type === t && styles.typeTextActive]}>{t}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {activeTab === 'Leave' && (
+              <>
+                <Text style={styles.inputLabel}>Leave Type</Text>
+                <View style={styles.typeContainer}>
+                  {LEAVE_TYPES.map((t) => (
+                    <TouchableOpacity 
+                      key={t}
+                      style={[styles.typeButton, type === t && styles.typeButtonActive]}
+                      onPress={() => setType(t)}
+                    >
+                      <Text style={[styles.typeText, type === t && styles.typeTextActive]}>{t}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
 
             <View style={styles.rowInputs}>
               <View style={styles.halfInput}>
@@ -202,36 +226,36 @@ const LeaveScreen = () => {
           </View>
 
           {/* Leave History */}
-          <Text style={styles.historyTitle}>My Leave History</Text>
+          <Text style={styles.historyTitle}>My {activeTab} History</Text>
           {loading ? (
             <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 20 }} />
-          ) : leaves.length === 0 ? (
-            <Text style={styles.emptyText}>You haven't applied for any leaves yet.</Text>
+          ) : records.length === 0 ? (
+            <Text style={styles.emptyText}>You haven't applied for any {activeTab.toLowerCase()} yet.</Text>
           ) : (
-            leaves.map((leave) => (
-              <View key={leave._id} style={styles.historyCard}>
+            records.map((record) => (
+              <View key={record._id} style={styles.historyCard}>
                 <View style={styles.historyHeader}>
                   <View style={styles.historyIconBox}>
                     <CalendarDaysIcon color="#2563eb" size={24} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 16 }}>
-                    <Text style={styles.historyType}>{leave.type} Leave</Text>
+                    <Text style={styles.historyType}>{activeTab === 'Leave' ? `${record.type} Leave` : 'WFH Request'}</Text>
                     <Text style={styles.historyDates}>
-                      {new Date(leave.startDate).toLocaleDateString()} - {new Date(leave.endDate).toLocaleDateString()}
+                      {new Date(record.startDate).toLocaleDateString()} - {new Date(record.endDate).toLocaleDateString()}
                     </Text>
                   </View>
-                  <View style={[styles.badge, { backgroundColor: getStatusColor(leave.status) + '20' }]}>
-                    <Text style={[styles.badgeText, { color: getStatusColor(leave.status) }]}>{leave.status}</Text>
+                  <View style={[styles.badge, { backgroundColor: getStatusColor(record.status) + '20' }]}>
+                    <Text style={[styles.badgeText, { color: getStatusColor(record.status) }]}>{record.status}</Text>
                   </View>
                 </View>
-                {leave.reason && (
+                {record.reason && (
                   <Text style={styles.historyReason} numberOfLines={2}>
-                    "{leave.reason}"
+                    "{record.reason}"
                   </Text>
                 )}
-                {leave.managerRemark && (
+                {record.managerRemark && (
                   <View style={styles.remarkBox}>
-                    <Text style={styles.remarkText}>HR: {leave.managerRemark}</Text>
+                    <Text style={styles.remarkText}>HR: {record.managerRemark}</Text>
                   </View>
                 )}
               </View>
@@ -273,6 +297,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
+  tabContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  tabButtonActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    color: '#bfdbfe',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  tabTextActive: {
+    color: '#2563eb',
+    fontWeight: '700',
+  },
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
@@ -313,7 +368,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    marginHorizontal: 4,
+    marginHorizontal: 2,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
@@ -322,8 +377,8 @@ const styles = StyleSheet.create({
     borderColor: '#3b82f6',
   },
   typeText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: '#64748b',
   },
   typeTextActive: {

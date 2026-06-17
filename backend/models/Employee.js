@@ -56,7 +56,8 @@ const employeeSchema = new mongoose.Schema({
   leaveBalance: {
     casualLeave: { type: Number, default: 12 },
     sickLeave: { type: Number, default: 12 },
-    earnedLeave: { type: Number, default: 15 }
+    earnedLeave: { type: Number, default: 15 },
+    compOff: { type: Number, default: 0 }
   },
   isActive: {
     type: Boolean,

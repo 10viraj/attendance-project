@@ -1,20 +1,25 @@
 # Corporate Smart Attendance System
 
-A comprehensive, full-stack Attendance Management Solution designed for modern corporates. This project seamlessly integrates a React Native Mobile App for employees to mark their attendance using Face Scanning and GPS, a React Web Portal for Admins/HR to monitor everything, and a robust Express/MongoDB backend to tie it all together in real-time.
+A comprehensive, full-stack Attendance Management Solution designed for modern corporates. This project seamlessly integrates a React Native Mobile App for employees to mark their attendance using Biometric Authentication (Fingerprint/Face ID) and GPS, a React Web Portal for Admins/HR to monitor everything, and a robust Express/MongoDB backend to tie it all together in real-time.
 
 ---
 
 ## 🚀 Key Features
 
 ### 📱 Employee Mobile App (React Native + Expo)
-- **Face Scan Check-In**: Uses the device camera for identity verification.
+- **Biometric App Unlock**: Returning users can instantly unlock the app using device biometrics (Fingerprint/FaceID) instead of passwords.
+- **Biometric Check-In & Smart Punch**: Securely punch attendance using the device's native biometric hardware. A single smart button detects current status and checks the user in or out accordingly.
+- **Attendance History & Admin Reporting**: View past 30 days of attendance records. Admins can view a comprehensive **Monthly Breakdown Grid** directly on mobile, including daily status (Present, Late, Half-Day, Absent).
+- **Export to CSV**: Mobile Admins can export the entire monthly report to a `.csv` file and instantly share it via the phone's native Share/Save menu.
+- **Dynamic Time-Based UI**: The dashboard and profile pages dynamically shift their color palettes and greetings based on the time of day (Morning, Afternoon, Evening, Night).
 - **Geolocation Validation**: GPS coordinates are recorded during check-in/check-out.
-- **Personal Dashboard**: Real-time stats on hours worked, weekly attendance percentage, and status.
-- **Leave Management**: Apply for Sick, Casual, or Earned leaves directly from the app.
-- **Profile Management**: View and edit personal details and contact information.
+- **Leave & WFH Management**: Apply for Sick, Casual, Earned leaves, or request WFH directly from the app.
+- **Profile Management**: View and edit personal details with a stunning, modern glassmorphism aesthetic.
 
 ### 💻 Admin Web Portal (React + Vite + Tailwind CSS)
 - **Live Dashboard**: Real-time overview of present/absent employees, late arrivals, and department statistics (powered by Recharts).
+- **Detailed Monthly Breakdown**: A robust Reports page featuring an expandable accordion for every employee, displaying a highly detailed, calendar-style breakdown of their entire month.
+- **One-Click Export**: Easily export any generated monthly report directly to `.csv` for Excel or payroll software.
 - **Employee Directory**: Manage the entire workforce, view individual profiles, and adjust designations.
 - **Leave Approvals**: One-click Approve or Reject functionality for employee leave requests.
 - **Role Segregation**: Smart login logic restricts the Mobile App to Employees only and the Web Portal to Admins.
@@ -42,7 +47,7 @@ The project is structured into three main directories:
 - **Database**: MongoDB & Mongoose
 - **Backend**: Node.js, Express.js, JWT, Socket.io, Cloudinary
 - **Frontend (Web)**: React, Vite, Tailwind CSS, Redux Toolkit, Recharts, Lucide Icons
-- **Frontend (Mobile)**: React Native, Expo, React Navigation, AsyncStorage, HeroIcons
+- **Frontend (Mobile)**: React Native, Expo, React Navigation, AsyncStorage, expo-local-authentication, HeroIcons
 
 ---
 

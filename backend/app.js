@@ -15,6 +15,8 @@ const qrcodeRoutes = require('./routes/qrcodeRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const faceRoutes = require('./routes/faceRoutes');
+const wfhRoutes = require('./routes/wfhRoutes');
+const holidayRoutes = require('./routes/holidayRoutes');
 
 // Middleware imports
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
@@ -56,6 +58,8 @@ app.use('/api/qrcode', qrcodeRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/face', faceRoutes);
+app.use('/api/wfh', wfhRoutes);
+app.use('/api/holidays', holidayRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

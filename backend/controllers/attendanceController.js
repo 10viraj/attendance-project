@@ -25,33 +25,36 @@ const checkIn = async (req, res, next) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Check if already checked in today
-    let attendance = await Attendance.findOne({
+    // Check if already checked in today and not yet checked out
+    let openAttendance = await Attendance.findOne({
       employee: employee._id,
-      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
+      'checkOut.time': { $exists: false }
     });
 
-    if (attendance) {
+    if (openAttendance) {
       res.status(400);
-      throw new Error('Already checked in for today');
+      throw new Error('Already checked in. Please check out first.');
     }
 
     const currentTime = new Date();
     let isLate = false;
+    let status = 'Present';
 
-    // Check if late based on shift start time + grace period
-    if (employee.shift) {
-      const [hours, minutes] = employee.shift.startTime.split(':');
-      const expectedStartTime = new Date();
-      expectedStartTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      
-      const lateThreshold = new Date(expectedStartTime.getTime() + employee.shift.gracePeriod * 60000);
-      if (currentTime > lateThreshold) {
-        isLate = true;
-      }
+    // 10:00 am after late consider 1:00 pm after consider half day
+    const tenAM = new Date();
+    tenAM.setHours(10, 0, 0, 0);
+
+    const onePM = new Date();
+    onePM.setHours(13, 0, 0, 0);
+
+    if (currentTime > onePM) {
+      status = 'Half-Day';
+    } else if (currentTime > tenAM) {
+      isLate = true;
     }
 
-    attendance = await Attendance.create({
+    const attendance = await Attendance.create({
       employee: employee._id,
       date: today,
       checkIn: {
@@ -63,7 +66,7 @@ const checkIn = async (req, res, next) => {
         verificationMethod,
         photoUrl
       },
-      status: 'Present',
+      status,
       isLate
     });
 
@@ -98,17 +101,13 @@ const checkOut = async (req, res, next) => {
 
     const attendance = await Attendance.findOne({
       employee: employee._id,
-      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
+      'checkOut.time': { $exists: false }
     });
 
     if (!attendance) {
       res.status(400);
-      throw new Error('No check-in record found for today');
-    }
-
-    if (attendance.checkOut && attendance.checkOut.time) {
-      res.status(400);
-      throw new Error('Already checked out for today');
+      throw new Error('No open check-in record found to check out');
     }
 
     const currentTime = new Date();
@@ -122,7 +121,27 @@ const checkOut = async (req, res, next) => {
     };
 
     // Calculate working hours
-    const workedHours = getDifferenceInHours(attendance.checkIn.time, currentTime);
+    let workedHours = getDifferenceInHours(attendance.checkIn.time, currentTime);
+
+    // Deduct total break hours
+    let totalBreakMinutes = 0;
+    if (attendance.breaks && attendance.breaks.length > 0) {
+      attendance.breaks.forEach(b => {
+        if (b.durationMinutes) {
+          totalBreakMinutes += b.durationMinutes;
+        } else if (b.startTime && !b.endTime) {
+          // If break wasn't explicitly ended, close it now
+          const duration = Math.round((currentTime - b.startTime) / (1000 * 60));
+          b.endTime = currentTime;
+          b.durationMinutes = duration;
+          totalBreakMinutes += duration;
+        }
+      });
+    }
+
+    const breakHours = totalBreakMinutes / 60;
+    workedHours = Math.max(0, workedHours - breakHours);
+
     attendance.workingHours = workedHours;
 
     // Check early exit and overtime
@@ -167,14 +186,21 @@ const getTodayStatus = async (req, res, next) => {
     const attendance = await Attendance.findOne({
       employee: employee._id,
       date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
-    });
+    }).sort({ 'checkIn.time': -1 });
 
     if (!attendance) {
       return res.json({ success: true, status: 'Not Checked In' });
     }
 
     if (attendance.checkOut && attendance.checkOut.time) {
-      return res.json({ success: true, status: 'Checked Out', data: attendance });
+      // If the most recent record is checked out, allow them to check in again
+      return res.json({ success: true, status: 'Not Checked In', data: attendance });
+    }
+
+    // Check if on break
+    const activeBreak = attendance.breaks?.find(b => !b.endTime);
+    if (activeBreak) {
+      return res.json({ success: true, status: 'On Break', data: attendance });
     }
 
     return res.json({ success: true, status: 'Checked In', data: attendance });
@@ -188,7 +214,7 @@ const getTodayStatus = async (req, res, next) => {
 // @access  Private
 const getEmployeeStats = async (req, res, next) => {
   try {
-    const employee = await Employee.findOne({ user: req.user._id });
+    const employee = await Employee.findOne({ user: req.user._id }).populate('shift');
     if (!employee) {
       res.status(404);
       throw new Error('Employee profile not found');
@@ -243,7 +269,9 @@ const getEmployeeStats = async (req, res, next) => {
       success: true,
       data: {
         attendancePercentage,
-        weeklyHoursFormatted: `${hours}h ${minutes}m`
+        weeklyHoursFormatted: `${hours}h ${minutes}m`,
+        shiftName: employee.shift ? employee.shift.name : 'Standard Shift',
+        shiftTime: employee.shift ? `${employee.shift.startTime} - ${employee.shift.endTime}` : '09:00 - 18:00'
       }
     });
   } catch (error) {
@@ -251,4 +279,136 @@ const getEmployeeStats = async (req, res, next) => {
   }
 };
 
-module.exports = { checkIn, checkOut, getTodayStatus, getEmployeeStats };
+// @desc    Get employee attendance history
+// @route   GET /api/attendance/history
+// @access  Private
+const getHistory = async (req, res, next) => {
+  try {
+    const employee = await Employee.findOne({ user: req.user._id });
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee profile not found');
+    }
+
+    const history = await Attendance.find({ employee: employee._id })
+      .sort({ date: -1 })
+      .limit(30); // Return last 30 days for performance
+
+    res.json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get attendance history for a specific employee
+// @route   GET /api/attendance/admin/employee/:employeeId
+// @access  Private/Admin
+const getEmployeeHistory = async (req, res, next) => {
+  try {
+    const history = await Attendance.find({ employee: req.params.employeeId })
+      .sort({ date: -1 })
+      .limit(30);
+
+    res.json({
+      success: true,
+      data: history
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Start a break
+// @route   POST /api/attendance/start-break
+// @access  Private
+const startBreak = async (req, res, next) => {
+  try {
+    const employee = await Employee.findOne({ user: req.user._id });
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee not found');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      employee: employee._id,
+      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
+      'checkOut.time': { $exists: false }
+    });
+
+    if (!attendance) {
+      res.status(400);
+      throw new Error('You must be checked in to start a break');
+    }
+
+    // Check if a break is already active
+    const activeBreak = attendance.breaks.find(b => !b.endTime);
+    if (activeBreak) {
+      res.status(400);
+      throw new Error('You are already on a break');
+    }
+
+    attendance.breaks.push({
+      startTime: new Date()
+    });
+
+    await attendance.save();
+
+    res.json({ success: true, data: attendance });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    End a break
+// @route   POST /api/attendance/end-break
+// @access  Private
+const endBreak = async (req, res, next) => {
+  try {
+    const employee = await Employee.findOne({ user: req.user._id });
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee not found');
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const attendance = await Attendance.findOne({
+      employee: employee._id,
+      date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) },
+      'checkOut.time': { $exists: false }
+    });
+
+    if (!attendance) {
+      res.status(400);
+      throw new Error('Attendance record not found or already checked out');
+    }
+
+    const activeBreakIndex = attendance.breaks.findIndex(b => !b.endTime);
+    if (activeBreakIndex === -1) {
+      res.status(400);
+      throw new Error('No active break found');
+    }
+
+    const endTime = new Date();
+    const startTime = attendance.breaks[activeBreakIndex].startTime;
+    const durationMinutes = Math.round((endTime - startTime) / (1000 * 60));
+
+    attendance.breaks[activeBreakIndex].endTime = endTime;
+    attendance.breaks[activeBreakIndex].durationMinutes = durationMinutes;
+
+    await attendance.save();
+
+    res.json({ success: true, data: attendance });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { checkIn, checkOut, getTodayStatus, getEmployeeStats, getHistory, getEmployeeHistory, startBreak, endBreak };

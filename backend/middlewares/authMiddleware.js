@@ -13,16 +13,21 @@ const protect = async (req, res, next) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       
       req.user = await User.findById(decoded.id).select('-password');
-      next();
+      if (!req.user) {
+         console.error('Auth Error: User not found for id', decoded.id);
+      }
+      return next();
     } catch (error) {
+      console.error('Auth Error: jwt verify or findById failed', error);
       res.status(401);
-      next(new Error('Not authorized, token failed'));
+      return next(new Error('Not authorized, token failed'));
     }
   }
 
   if (!token) {
+    console.error('Auth Error: No token provided');
     res.status(401);
-    next(new Error('Not authorized, no token'));
+    return next(new Error('Not authorized, no token'));
   }
 };
 

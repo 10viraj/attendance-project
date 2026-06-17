@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeftIcon, UserCircleIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, BriefcaseIcon, CalendarDaysIcon, CurrencyDollarIcon, CheckBadgeIcon, ClockIcon, TrashIcon } from 'react-native-heroicons/outline';
@@ -8,6 +8,25 @@ import api from '../../config/api';
 const AdminEmployeeDetailScreen = ({ route, navigation }) => {
   const { employee } = route.params;
   const [isDeleting, setIsDeleting] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        const res = await api.get(`/attendance/admin/employee/${employee._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setHistory(res.data.data || []);
+      } catch (error) {
+        console.error('Error fetching employee history:', error);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+    fetchHistory();
+  }, [employee._id]);
 
   const handleDelete = () => {
     Alert.alert(
@@ -163,6 +182,35 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
             />
           </View>
 
+          {/* Attendance History */}
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Recent Attendance</Text>
+            {loadingHistory ? (
+              <ActivityIndicator color="#2563eb" />
+            ) : history.length === 0 ? (
+              <Text style={styles.emptyText}>No attendance records found.</Text>
+            ) : (
+              history.map((record) => (
+                <View key={record._id} style={styles.historyRow}>
+                  <View style={styles.historyDateCol}>
+                    <Text style={styles.historyDate}>{formatDate(record.date)}</Text>
+                    <Text style={[
+                      styles.historyStatus, 
+                      { color: record.status === 'Present' ? '#10b981' : '#f59e0b' }
+                    ]}>{record.status}</Text>
+                  </View>
+                  <View style={styles.historyTimeCol}>
+                    <Text style={styles.historyTime}>In: {record.checkIn?.time ? new Date(record.checkIn.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</Text>
+                    <Text style={styles.historyTime}>Out: {record.checkOut?.time ? new Date(record.checkOut.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</Text>
+                  </View>
+                  <View style={styles.historyHoursCol}>
+                    <Text style={styles.historyHours}>{record.workingHours ? `${record.workingHours.toFixed(1)}h` : '-'}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -301,6 +349,49 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#334155',
     fontWeight: '500',
+  },
+  emptyText: {
+    color: '#94a3b8',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  historyDateCol: {
+    flex: 2,
+  },
+  historyTimeCol: {
+    flex: 2,
+  },
+  historyHoursCol: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  historyDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  historyStatus: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  historyTime: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  historyHours: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3b82f6',
   },
 });
 

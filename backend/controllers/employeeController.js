@@ -126,7 +126,7 @@ const deleteEmployee = async (req, res, next) => {
 const updateMyProfile = async (req, res, next) => {
   try {
     // Restrict what fields can be updated
-    const { firstName, lastName, phone, address } = req.body;
+    const { firstName, lastName, phone, address, email } = req.body;
     
     const updateFields = {};
     if (firstName !== undefined) updateFields.firstName = firstName;
@@ -144,8 +144,18 @@ const updateMyProfile = async (req, res, next) => {
       res.status(404);
       throw new Error('Employee profile not found');
     }
+    
+    let updatedUser = req.user;
+    if (email && email !== req.user.email) {
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        res.status(400);
+        throw new Error('Email already in use');
+      }
+      updatedUser = await User.findByIdAndUpdate(req.user._id, { email }, { new: true });
+    }
 
-    res.json({ success: true, data: employee });
+    res.json({ success: true, data: employee, user: updatedUser });
   } catch (error) {
     next(error);
   }

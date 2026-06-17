@@ -93,8 +93,12 @@ const AdminDashboardScreen = ({ navigation }) => {
           {/* Primary Action Row */}
           <View style={styles.actionRow}>
             <Text style={styles.sectionTitle}>Today's Metrics</Text>
-            <TouchableOpacity style={styles.reportButton} activeOpacity={0.8}>
-              <Text style={styles.reportButtonText}>Generate Report</Text>
+            <TouchableOpacity 
+              style={styles.reportButton} 
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('AdminMonthlyReport')}
+            >
+              <Text style={styles.reportButtonText}>Monthly Report</Text>
             </TouchableOpacity>
           </View>
 
@@ -146,6 +150,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                   bgColor="#ecfdf5" 
                   iconColor="#10b981" 
                   trend="+5%" 
+                  onPress={() => navigation.navigate('AdminDailyReport', { initialTab: 'present' })}
                 />
               </View>
 
@@ -157,6 +162,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                   icon={ClockIcon} 
                   bgColor="#fffbeb" 
                   iconColor="#f59e0b" 
+                  onPress={() => navigation.navigate('AdminDailyReport', { initialTab: 'late' })}
                 />
 
                 {/* On Leave (Absent) */}
@@ -166,6 +172,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                   icon={XCircleIcon} 
                   bgColor="#fff1f2" 
                   iconColor="#e11d48" 
+                  onPress={() => navigation.navigate('AdminDailyReport', { initialTab: 'leave' })}
                 />
               </View>
 

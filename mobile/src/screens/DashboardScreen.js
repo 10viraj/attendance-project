@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ClockIcon, CameraIcon, CalendarDaysIcon, CheckCircleIcon } from 'react-native-heroicons/outline';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ClockIcon, CalendarDaysIcon, CheckCircleIcon, FingerPrintIcon, StarIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../config/api';
@@ -12,6 +13,8 @@ const DashboardScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [attendancePercent, setAttendancePercent] = useState('0');
   const [weeklyHours, setWeeklyHours] = useState('0h 0m');
+  const [shiftName, setShiftName] = useState('Loading...');
+  const [shiftTime, setShiftTime] = useState('--:--');
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -35,6 +38,8 @@ const DashboardScreen = ({ navigation }) => {
           if (statsRes.data.success) {
             setAttendancePercent(statsRes.data.data.attendancePercentage.toString());
             setWeeklyHours(statsRes.data.data.weeklyHoursFormatted);
+            setShiftName(statsRes.data.data.shiftName);
+            setShiftTime(statsRes.data.data.shiftTime);
           }
         } catch (statsErr) {
           console.error('Error loading stats:', statsErr);
@@ -54,11 +59,50 @@ const DashboardScreen = ({ navigation }) => {
     }, [])
   );
 
+  // Determine time of day
+  const hour = new Date().getHours();
+  let timeTheme = {
+    greeting: 'Good Evening',
+    colors: ['#312e81', '#4f46e5'], // Default Night
+    shadow: '#3730a3'
+  };
+
+  if (hour >= 5 && hour < 12) {
+    timeTheme = {
+      greeting: 'Good Morning',
+      colors: ['#f59e0b', '#fbbf24'],
+      shadow: '#d97706'
+    };
+  } else if (hour >= 12 && hour < 17) {
+    timeTheme = {
+      greeting: 'Good Afternoon',
+      colors: ['#0ea5e9', '#38bdf8'],
+      shadow: '#0284c7'
+    };
+  } else if (hour >= 17 && hour < 20) {
+    timeTheme = {
+      greeting: 'Good Evening',
+      colors: ['#f43f5e', '#fb923c'],
+      shadow: '#e11d48'
+    };
+  } else {
+    timeTheme = {
+      greeting: 'Good Night',
+      colors: ['#312e81', '#4f46e5'],
+      shadow: '#3730a3'
+    };
+  }
+
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#2563eb" barStyle="light-content" translucent={false} />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
       {/* Background Decorator */}
-      <View style={styles.headerBackground} />
+      <LinearGradient
+        colors={timeTheme.colors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerBackground}
+      />
 
       <SafeAreaView style={styles.safeArea}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -66,7 +110,7 @@ const DashboardScreen = ({ navigation }) => {
           {/* Header */}
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.greetingSub}>Good Morning</Text>
+              {/* <Text style={styles.greetingSub}>{timeTheme.greeting},</Text> */}
               <Text style={styles.greetingMain}>
                 {employee ? `${employee.firstName} ${employee.lastName}` : 'User'}
               </Text>
@@ -74,27 +118,36 @@ const DashboardScreen = ({ navigation }) => {
           </View>
 
           {/* Quick Check-In Card */}
-          <View style={styles.primaryCard}>
+          <View style={[styles.primaryCard, { shadowColor: timeTheme.shadow }]}>
             <View style={styles.statusRow}>
               <View>
                 <Text style={styles.statusLabel}>Current Status</Text>
-                <Text style={styles.statusValue}>
-                  {loading ? <ActivityIndicator color="#fff" size="small" /> : status}
+                <Text style={[styles.statusValue, { color: timeTheme.colors[0] }]}>
+                  {loading ? <ActivityIndicator color={timeTheme.colors[0]} size="small" /> : status}
+                </Text>
+                <Text style={styles.shiftInfo}>
+                  Shift: {shiftName} ({shiftTime})
                 </Text>
               </View>
-              <View style={styles.iconBoxLight}>
-                <ClockIcon color="#fff" size={24} />
+              <View style={[styles.iconBoxLight, { backgroundColor: timeTheme.colors[0] + '1A' }]}>
+                <ClockIcon color={timeTheme.colors[0]} size={24} />
               </View>
             </View>
 
             {status !== 'Checked In' && status !== 'Checked Out' && (
               <TouchableOpacity
-                style={styles.actionButtonLight}
                 onPress={() => navigation.navigate('Attendance')}
                 activeOpacity={0.8}
               >
-                <CameraIcon color="#2563eb" size={20} />
-                <Text style={styles.actionButtonTextPrimary}>Scan QR to Check In</Text>
+                <LinearGradient
+                  colors={timeTheme.colors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.actionButtonGradient}
+                >
+                  <FingerPrintIcon color="#ffffff" size={20} />
+                  <Text style={styles.actionButtonTextGradient}>Punch to Check In</Text>
+                </LinearGradient>
               </TouchableOpacity>
             )}
           </View>
@@ -134,13 +187,24 @@ const DashboardScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.quickActionCard}
+              onPress={() => navigation.navigate('HolidayCalendar')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.iconBoxMedium, { backgroundColor: '#ffedd5' }]}>
+                <StarIcon color="#ea580c" size={24} />
+              </View>
+              <Text style={styles.quickActionText}>Holidays</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
               onPress={() => navigation.navigate('Attendance')}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconBoxMedium, { backgroundColor: '#fef3c7' }]}>
-                <CameraIcon color="#d97706" size={24} />
+              <View style={[styles.iconBoxMedium, { backgroundColor: '#f3e8ff' }]}>
+                <FingerPrintIcon color="#9333ea" size={24} />
               </View>
-              <Text style={styles.quickActionText}>Face Scan</Text>
+              <Text style={styles.quickActionText}>Punch</Text>
             </TouchableOpacity>
           </View>
 
@@ -160,8 +224,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 180,
-    backgroundColor: '#2563eb', // primary-600
+    height: 220,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },
@@ -209,15 +272,16 @@ const styles = StyleSheet.create({
     color: '#2563eb',
   },
   primaryCard: {
-    backgroundColor: '#3b82f6', // primary-500
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
     elevation: 8,
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.02)',
   },
   statusRow: {
     flexDirection: 'row',
@@ -227,33 +291,39 @@ const styles = StyleSheet.create({
   },
   statusLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#eff6ff', // primary-50
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   statusValue: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '800',
-    color: '#ffffff',
     marginTop: 4,
   },
+  shiftInfo: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#94a3b8',
+    marginTop: 6,
+  },
   iconBoxLight: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 12,
+    padding: 14,
     borderRadius: 16,
   },
-  actionButtonLight: {
-    backgroundColor: '#ffffff',
+  actionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: 16,
+    borderRadius: 20, // pill-like shape
   },
-  actionButtonTextPrimary: {
-    color: '#2563eb',
+  actionButtonTextGradient: {
+    color: '#ffffff',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     marginLeft: 8,
+    letterSpacing: 0.5,
   },
   statsRow: {
     flexDirection: 'row',
@@ -313,20 +383,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
-    marginHorizontal: 6, // Spacing between cards
+    marginHorizontal: 4, // Spacing between cards
   },
   iconBoxMedium: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   quickActionText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#334155',
+    textAlign: 'center',
   },
 });
 

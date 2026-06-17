@@ -11,16 +11,28 @@ const AdminLeavesScreen = () => {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
 
-  const fetchLeaves = async () => {
+  const [activeTab, setActiveTab] = useState('Leaves');
+  const [wfhRequests, setWfhRequests] = useState([]);
+
+  const fetchData = async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
       if (token) {
-        const res = await api.get('/leaves', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.data.success) {
-          setLeaves(res.data.data);
+        if (activeTab === 'Leaves') {
+          const res = await api.get('/leaves', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.data.success) {
+            setLeaves(res.data.data);
+          }
+        } else {
+          const res = await api.get('/wfh/admin', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.data.success) {
+            setWfhRequests(res.data.data);
+          }
         }
       }
     } catch (error) {
@@ -33,8 +45,8 @@ const AdminLeavesScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchLeaves();
-    }, [])
+      fetchData();
+    }, [activeTab])
   );
 
   const handleUpdateStatus = async (id, status) => {
@@ -50,7 +62,11 @@ const AdminLeavesScreen = () => {
             try {
               const token = await AsyncStorage.getItem('userToken');
               if (token) {
-                const res = await api.put(`/leaves/${id}/status`, {
+                const endpoint = activeTab === 'Leaves' 
+                  ? `/leaves/${id}/status` 
+                  : `/wfh/admin/${id}/status`;
+
+                const res = await api.put(endpoint, {
                   status: status,
                   managerRemark: `Automatically ${status.toLowerCase()} via Mobile App`
                 }, {
@@ -58,8 +74,8 @@ const AdminLeavesScreen = () => {
                 });
 
                 if (res.data.success) {
-                  Alert.alert('Success', `Leave request has been ${status.toLowerCase()}.`);
-                  fetchLeaves(); // Refresh the list
+                  Alert.alert('Success', `Request has been ${status.toLowerCase()}.`);
+                  fetchData(); // Refresh the list
                 }
               }
             } catch (error) {
@@ -104,7 +120,9 @@ const AdminLeavesScreen = () => {
             <Text style={styles.employeeName}>
               {item.employee?.firstName} {item.employee?.lastName}
             </Text>
-            <Text style={styles.leaveType}>{item.type} Leave</Text>
+            <Text style={styles.leaveType}>
+              {activeTab === 'Leaves' ? `${item.type} Leave` : 'WFH Request'}
+            </Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
             <StatusIcon color={statusColor} size={16} />
@@ -157,16 +175,34 @@ const AdminLeavesScreen = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#ffffff" barStyle="dark-content" translucent={false} />
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Leave Approvals</Text>
+        <Text style={styles.headerTitle}>Approvals</Text>
+        
+        {/* Tab Switcher */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'Leaves' && styles.activeTab]}
+            onPress={() => setActiveTab('Leaves')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, activeTab === 'Leaves' && styles.activeTabText]}>Leave</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'WFH' && styles.activeTab]}
+            onPress={() => setActiveTab('WFH')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, activeTab === 'WFH' && styles.activeTabText]}>WFH</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {loading && !leaves.length ? (
+      {loading && (activeTab === 'Leaves' ? !leaves.length : !wfhRequests.length) ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#2563eb" />
         </View>
       ) : (
         <FlatList
-          data={leaves}
+          data={activeTab === 'Leaves' ? leaves : wfhRequests}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
@@ -200,6 +236,35 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     color: '#0f172a',
+    marginBottom: 16,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#94a3b8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  activeTabText: {
+    color: '#2563eb',
   },
   listContent: {
     padding: 20,

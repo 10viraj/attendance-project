@@ -8,6 +8,10 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import MainTabNavigator from './src/navigation/MainTabNavigator';
 import AdminTabNavigator from './src/navigation/AdminTabNavigator';
 import AdminEmployeeDetailScreen from './src/screens/admin/AdminEmployeeDetailScreen';
+import AdminDailyReportScreen from './src/screens/admin/AdminDailyReportScreen';
+import AdminMonthlyReportScreen from './src/screens/admin/AdminMonthlyReportScreen';
+import AttendanceHistoryScreen from './src/screens/AttendanceHistoryScreen';
+import HolidayScreen from './src/screens/HolidayScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -21,6 +25,10 @@ export default function App() {
           <Stack.Screen name="Main" component={MainTabNavigator} />
           <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
           <Stack.Screen name="AdminEmployeeDetail" component={AdminEmployeeDetailScreen} />
+          <Stack.Screen name="AdminDailyReport" component={AdminDailyReportScreen} />
+          <Stack.Screen name="AdminMonthlyReport" component={AdminMonthlyReportScreen} />
+          <Stack.Screen name="AttendanceHistory" component={AttendanceHistoryScreen} />
+          <Stack.Screen name="HolidayCalendar" component={HolidayScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

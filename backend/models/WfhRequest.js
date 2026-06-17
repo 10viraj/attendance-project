@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const leaveSchema = new mongoose.Schema({
+const wfhRequestSchema = new mongoose.Schema({
   employee: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Employee',
@@ -12,11 +12,6 @@ const leaveSchema = new mongoose.Schema({
   },
   endDate: {
     type: Date,
-    required: true
-  },
-  type: {
-    type: String,
-    enum: ['Casual', 'Sick', 'Earned', 'Unpaid', 'Comp Off'],
     required: true
   },
   reason: {
@@ -37,4 +32,4 @@ const leaveSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Leave', leaveSchema);
+module.exports = mongoose.model('WfhRequest', wfhRequestSchema);

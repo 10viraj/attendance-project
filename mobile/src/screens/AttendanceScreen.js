@@ -1,16 +1,16 @@
 import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraIcon, ArrowRightOnRectangleIcon, ClockIcon } from 'react-native-heroicons/outline';
+import { FingerPrintIcon, ClockIcon, ClipboardDocumentListIcon } from 'react-native-heroicons/outline';
+import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../config/api';
 
-const AttendanceScreen = () => {
+const AttendanceScreen = ({ navigation }) => {
   const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -36,31 +36,75 @@ const AttendanceScreen = () => {
     }, [])
   );
 
-  const startCamera = async (action) => {
-    // Open simulated camera feed
-    setCameraActive(true);
-    
-    // Scan for 3 seconds then process
-    setTimeout(() => {
-      setCameraActive(false);
-      handleAction(action);
-    }, 3000);
+  const authenticateAndAction = async (actionType) => {
+    if (status === 'Checked Out') {
+      Alert.alert('Shift Completed', 'You have already checked out for today.');
+      return;
+    }
+
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (!hasHardware) {
+        Alert.alert('Not Supported', 'Your device does not support biometric authentication.');
+        return;
+      }
+
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!isEnrolled) {
+        Alert.alert('Not Set Up', 'Please configure your fingerprint or face ID in your device settings.');
+        return;
+      }
+
+      let promptMsg = 'Authenticate';
+      if (actionType === 'check-in') promptMsg = 'Authenticate to Check In';
+      if (actionType === 'check-out') promptMsg = 'Authenticate to Check Out';
+      if (actionType === 'start-break') promptMsg = 'Authenticate to Start Break';
+      if (actionType === 'end-break') promptMsg = 'Authenticate to End Break';
+
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: promptMsg,
+        fallbackLabel: 'Use Passcode',
+      });
+
+      if (authResult.success) {
+        handleAction(actionType);
+      } else {
+        Alert.alert('Authentication Failed', 'Unable to verify your identity.');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'An error occurred during authentication.');
+    }
   };
 
   const handleAction = async (action) => {
     setProcessing(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
-      const endpoint = action === 'check-in' ? '/attendance/check-in' : '/attendance/check-out';
+      const employeeInfoStr = await AsyncStorage.getItem('employeeInfo');
       
-      const res = await api.post(endpoint, {}, {
+      let employeeId;
+      if (employeeInfoStr) {
+        const employeeInfo = JSON.parse(employeeInfoStr);
+        employeeId = employeeInfo.employeeId;
+      }
+
+      const endpoint = `/attendance/${action}`;
+      
+      const payload = {
+        employeeId,
+        location: { latitude: 28.6139, longitude: 77.2090 }, // Mock location
+        verificationMethod: 'Fingerprint'
+      };
+      
+      const res = await api.post(endpoint, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (res.data.success) {
         Alert.alert(
-          'Face Verified', 
-          `Successfully ${action === 'check-in' ? 'Checked In' : 'Checked Out'}! Today's attendance has been calculated and updated.`
+          'Attendance Recorded', 
+          `Successfully processed: ${action.replace('-', ' ')}`
         );
         loadStatus();
       }
@@ -85,72 +129,94 @@ const AttendanceScreen = () => {
 
         <View style={styles.content}>
           <View style={styles.card}>
-            {cameraActive ? (
-              <View style={styles.cameraWrapper}>
-                <View style={styles.fakeCameraFeed}>
-                  <CameraIcon color="#94a3b8" size={60} />
-                </View>
-                <View style={styles.cameraOverlay}>
-                  <View style={styles.scanBox} />
-                  <ActivityIndicator size="large" color="#10b981" style={{ position: 'absolute', zIndex: 10 }} />
-                  <Text style={styles.cameraText}>Analyzing Face...</Text>
-                </View>
-              </View>
-            ) : (
-              <>
-                <View style={styles.iconCircle}>
-                  <ClockIcon color="#2563eb" size={40} />
-                </View>
-                <Text style={styles.statusLabel}>Current Status</Text>
-                <Text style={styles.statusValue}>
-                  {loading ? <ActivityIndicator color="#1e293b" /> : status}
-                </Text>
+            <View style={styles.iconCircle}>
+              <ClockIcon color="#2563eb" size={40} />
+            </View>
+            <Text style={styles.statusLabel}>Current Status</Text>
+            <Text style={styles.statusValue}>
+              {loading ? <ActivityIndicator color="#1e293b" /> : status}
+            </Text>
 
-                <View style={styles.actionContainer}>
-                  {status === 'Not Checked In' && (
-                    <TouchableOpacity 
-                      style={styles.checkInButton}
-                      onPress={() => startCamera('check-in')}
-                      disabled={processing}
-                      activeOpacity={0.8}
-                    >
-                      {processing ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <>
-                          <CameraIcon color="#fff" size={24} />
-                          <Text style={styles.buttonText}>Face Scan & Check In</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
+            <View style={styles.actionContainer}>
+              {status === 'Not Checked In' && (
+                <TouchableOpacity 
+                  style={styles.checkInButton}
+                  onPress={() => authenticateAndAction('check-in')}
+                  disabled={processing}
+                  activeOpacity={0.8}
+                >
+                  {processing ? <ActivityIndicator color="#fff" /> : (
+                    <>
+                      <FingerPrintIcon color="#fff" size={24} />
+                      <Text style={styles.buttonText}>Punch Check In</Text>
+                    </>
                   )}
+                </TouchableOpacity>
+              )}
 
-                  {status === 'Checked In' && (
-                    <TouchableOpacity 
-                      style={styles.checkOutButton}
-                      onPress={() => startCamera('check-out')}
-                      disabled={processing}
-                      activeOpacity={0.8}
-                    >
-                      {processing ? (
-                        <ActivityIndicator color="#fff" />
-                      ) : (
-                        <>
-                          <ArrowRightOnRectangleIcon color="#fff" size={24} />
-                          <Text style={styles.buttonText}>Face Scan & Check Out</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
+              {status === 'Checked In' && (
+                <>
+                  <TouchableOpacity 
+                    style={[styles.checkInButton, { backgroundColor: '#f59e0b', marginBottom: 12 }]}
+                    onPress={() => authenticateAndAction('start-break')}
+                    disabled={processing}
+                    activeOpacity={0.8}
+                  >
+                    {processing ? <ActivityIndicator color="#fff" /> : (
+                      <>
+                        <ClockIcon color="#fff" size={24} />
+                        <Text style={styles.buttonText}>Start Break</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.checkOutButton}
+                    onPress={() => authenticateAndAction('check-out')}
+                    disabled={processing}
+                    activeOpacity={0.8}
+                  >
+                    {processing ? <ActivityIndicator color="#fff" /> : (
+                      <>
+                        <FingerPrintIcon color="#fff" size={24} />
+                        <Text style={styles.buttonText}>Punch Check Out</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
 
-                  {status === 'Checked Out' && (
-                    <View style={styles.doneContainer}>
-                      <Text style={styles.doneText}>You have completed your shift for today!</Text>
-                    </View>
+              {status === 'On Break' && (
+                <TouchableOpacity 
+                  style={[styles.checkInButton, { backgroundColor: '#10b981' }]}
+                  onPress={() => authenticateAndAction('end-break')}
+                  disabled={processing}
+                  activeOpacity={0.8}
+                >
+                  {processing ? <ActivityIndicator color="#fff" /> : (
+                    <>
+                      <ClockIcon color="#fff" size={24} />
+                      <Text style={styles.buttonText}>End Break</Text>
+                    </>
                   )}
+                </TouchableOpacity>
+              )}
+
+              {status === 'Checked Out' && (
+                <View style={styles.doneContainer}>
+                  <Text style={styles.doneText}>You have completed your shift for today!</Text>
                 </View>
-              </>
-            )}
+              )}
+
+              <TouchableOpacity 
+                style={styles.historyButton}
+                onPress={() => navigation.navigate('AttendanceHistory')}
+                activeOpacity={0.8}
+              >
+                <ClipboardDocumentListIcon color="#2563eb" size={20} />
+                <Text style={styles.historyButtonText}>View Attendance History</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -280,50 +346,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  cameraWrapper: {
-    width: '100%',
-    height: 300,
-    borderRadius: 24,
-    overflow: 'hidden',
-    position: 'relative',
-    marginBottom: 20,
-  },
-  camera: {
-    flex: 1,
-  },
-  fakeCameraFeed: {
-    flex: 1,
-    backgroundColor: '#f1f5f9',
+  historyButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
   },
-  cameraOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scanBox: {
-    width: 200,
-    height: 200,
-    borderWidth: 3,
-    borderColor: '#10b981',
-    borderRadius: 24,
-    borderStyle: 'dashed',
-    marginBottom: 20,
-  },
-  cameraText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  historyButtonText: {
+    color: '#2563eb',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, CalendarCheck, CalendarOff, FileText, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, CalendarOff, FileText, Settings, Calendar } from 'lucide-react';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { name: 'Employees', path: '/employees', icon: Users },
   { name: 'Attendance', path: '/attendance', icon: CalendarCheck },
   { name: 'Leaves', path: '/leaves', icon: CalendarOff },
+  { name: 'Holidays', path: '/holidays', icon: Calendar },
   { name: 'Reports', path: '/reports', icon: FileText },
 ];
 
