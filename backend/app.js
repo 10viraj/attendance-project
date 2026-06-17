@@ -17,6 +17,8 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const faceRoutes = require('./routes/faceRoutes');
 const wfhRoutes = require('./routes/wfhRoutes');
 const holidayRoutes = require('./routes/holidayRoutes');
+const announcementRoutes = require('./routes/announcementRoutes');
+const documentRoutes = require('./routes/documentRoutes');
 
 // Middleware imports
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
@@ -60,6 +62,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/face', faceRoutes);
 app.use('/api/wfh', wfhRoutes);
 app.use('/api/holidays', holidayRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);

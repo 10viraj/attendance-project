@@ -5,6 +5,7 @@ import { FingerPrintIcon, ClockIcon, ClipboardDocumentListIcon } from 'react-nat
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import NetInfo from '@react-native-community/netinfo';
 import api from '../config/api';
 
 const AttendanceScreen = ({ navigation }) => {
@@ -97,6 +98,26 @@ const AttendanceScreen = ({ navigation }) => {
         verificationMethod: 'Fingerprint'
       };
       
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        // Offline Mode: Queue the punch
+        const queueStr = await AsyncStorage.getItem('punchQueue');
+        const queue = queueStr ? JSON.parse(queueStr) : [];
+        queue.push({ action, payload, timestamp: new Date().toISOString() });
+        await AsyncStorage.setItem('punchQueue', JSON.stringify(queue));
+        
+        Alert.alert('Offline Mode', `You are offline. Your ${action.replace('-', ' ')} has been saved locally and will sync when reconnected.`);
+        
+        // Optimistically update UI
+        if (action === 'check-in') setStatus('Checked In');
+        if (action === 'check-out') setStatus('Checked Out');
+        if (action === 'start-break') setStatus('On Break');
+        if (action === 'end-break') setStatus('Checked In');
+        
+        setProcessing(false);
+        return;
+      }
+
       const res = await api.post(endpoint, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, CalendarCheck, CalendarOff, FileText, Settings, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, CalendarOff, FileText, Settings, Calendar, Megaphone } from 'lucide-react';
 
 const navItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -8,6 +8,7 @@ const navItems = [
   { name: 'Leaves', path: '/leaves', icon: CalendarOff },
   { name: 'Holidays', path: '/holidays', icon: Calendar },
   { name: 'Reports', path: '/reports', icon: FileText },
+  { name: 'Announcements', path: '/announcements', icon: Megaphone },
 ];
 
 const Sidebar = () => {

@@ -1,11 +1,29 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ClockIcon, CalendarDaysIcon, CheckCircleIcon, FingerPrintIcon, StarIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import api from '../config/api';
+
+let Notifications;
+try {
+  if (Constants.appOwnership !== 'expo' || Platform.OS !== 'android') {
+    Notifications = require('expo-notifications');
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }
+} catch (e) {
+  console.log('Error setting notification handler:', e);
+}
 
 const DashboardScreen = ({ navigation }) => {
   const [employee, setEmployee] = useState(null);
@@ -16,6 +34,8 @@ const DashboardScreen = ({ navigation }) => {
   const [shiftName, setShiftName] = useState('Loading...');
   const [shiftTime, setShiftTime] = useState('--:--');
 
+  const [announcements, setAnnouncements] = useState([]);
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {
@@ -24,11 +44,36 @@ const DashboardScreen = ({ navigation }) => {
       if (employeeData) setEmployee(JSON.parse(employeeData));
 
       if (token) {
+        // Register for push notifications
+        registerForPushNotificationsAsync().then(async (pushToken) => {
+          if (pushToken) {
+            try {
+              await api.post('/auth/push-token', { token: pushToken }, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+            } catch (err) {
+              console.log('Error saving push token', err);
+            }
+          }
+        });
+
         // Fetch Today's Status
         const statusRes = await api.get('/attendance/today', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setStatus(statusRes.data.status || 'Not Checked In');
+
+        // Fetch Announcements
+        try {
+          const annRes = await api.get('/announcements', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (annRes.data.success) {
+            setAnnouncements(annRes.data.data);
+          }
+        } catch (annErr) {
+          console.error('Error loading announcements:', annErr);
+        }
 
         // Fetch Employee Stats
         try {
@@ -170,6 +215,21 @@ const DashboardScreen = ({ navigation }) => {
               <Text style={styles.statValue}>{weeklyHours}</Text>
             </View>
           </View>
+
+          {/* Announcements Card */}
+          {announcements && announcements.length > 0 && (
+            <View style={styles.announcementCard}>
+              <View style={styles.announcementHeader}>
+                <Text style={styles.sectionTitle}>Company Notice</Text>
+              </View>
+              {announcements.slice(0, 2).map((ann, idx) => (
+                <View key={idx} style={styles.announcementItem}>
+                  <Text style={styles.announcementTitle}>{ann.title}</Text>
+                  <Text style={styles.announcementMessage}>{ann.message}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Quick Actions */}
           <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -399,6 +459,81 @@ const styles = StyleSheet.create({
     color: '#334155',
     textAlign: 'center',
   },
+  announcementCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#94a3b8',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  announcementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  announcementItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  announcementTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  announcementMessage: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 20,
+  },
 });
+
+async function registerForPushNotificationsAsync() {
+  if (!Notifications || Constants.appOwnership === 'expo') {
+    console.log('Push notifications are not supported or loaded in Expo Go.');
+    return null;
+  }
+
+  let token;
+  if (!Notifications) {
+    console.log('Push notifications are not supported or loaded in Expo Go.');
+    return null;
+  }
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+    });
+  }
+
+  if (Device.isDevice) {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      console.log('Failed to get push token for push notification!');
+      return null;
+    }
+    try {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId: 'attendance-app' })).data;
+    } catch (e) {
+      console.log('Push Token Error:', e);
+    }
+  } else {
+    console.log('Must use physical device for Push Notifications');
+  }
+  return token;
+}
 
 export default DashboardScreen;

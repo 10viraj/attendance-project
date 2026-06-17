@@ -24,7 +24,11 @@ const userSchema = new mongoose.Schema({
   },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
-  refreshToken: String
+  refreshToken: String,
+  expoPushToken: {
+    type: String,
+    default: ''
+  }
 }, { timestamps: true });
 
 // Encrypt password using bcrypt

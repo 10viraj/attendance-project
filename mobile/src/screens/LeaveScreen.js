@@ -7,11 +7,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../config/api';
 
-const LEAVE_TYPES = ['Casual', 'Sick', 'Earned', 'Comp Off'];
+const LEAVE_TYPES = ['Casual', 'Sick', 'Earned'];
 
 const LeaveScreen = () => {
   const [activeTab, setActiveTab] = useState('Leave');
   const [records, setRecords] = useState([]);
+  const [balances, setBalances] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,6 +39,13 @@ const LeaveScreen = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRecords(res.data.data || []);
+
+      if (tab === 'Leave') {
+        const balRes = await api.get('/leaves/balances', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setBalances(balRes.data.data);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -71,6 +79,18 @@ const LeaveScreen = () => {
     if (!startDate || !endDate || !reason) {
       Alert.alert('Error', 'Please fill in all fields (Dates format: YYYY-MM-DD)');
       return;
+    }
+
+    if (activeTab === 'Leave' && balances && type !== 'Earned') {
+      const typeKey = type.toLowerCase();
+      const limit = balances[typeKey].total;
+      const used = balances[typeKey].used;
+      const requestedDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+      
+      if (used + requestedDays > limit) {
+        Alert.alert('Limit Exceeded', `You cannot apply for this leave. You only have ${limit - used} ${type} leave(s) remaining this month.`);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -134,6 +154,27 @@ const LeaveScreen = () => {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           
+          {/* Leave Balances */}
+          {activeTab === 'Leave' && balances && (
+            <View style={styles.balanceContainer}>
+              <View style={styles.balanceCard}>
+                <Text style={styles.balanceValue}>{Math.max(0, balances.casual.total - balances.casual.used)}</Text>
+                <Text style={styles.balanceLabel}>Casual Left</Text>
+                <Text style={styles.balanceSub}>of {balances.casual.total}/mo</Text>
+              </View>
+              <View style={styles.balanceCard}>
+                <Text style={styles.balanceValue}>{Math.max(0, balances.sick.total - balances.sick.used)}</Text>
+                <Text style={styles.balanceLabel}>Sick Left</Text>
+                <Text style={styles.balanceSub}>of {balances.sick.total}/mo</Text>
+              </View>
+              <View style={styles.balanceCard}>
+                <Text style={styles.balanceValue}>{balances.earned.used}</Text>
+                <Text style={styles.balanceLabel}>Earned/Cut</Text>
+                <Text style={styles.balanceSub}>Used this mo</Text>
+              </View>
+            </View>
+          )}
+
           {/* Apply Form Card */}
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Apply for {activeTab}</Text>
@@ -331,6 +372,42 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+  },
+  balanceContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  balanceCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 12,
+    flex: 1,
+    marginHorizontal: 4,
+    alignItems: 'center',
+    shadowColor: '#94a3b8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  balanceValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#2563eb',
+  },
+  balanceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  balanceSub: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 2,
+    textAlign: 'center',
   },
   card: {
     backgroundColor: '#ffffff',

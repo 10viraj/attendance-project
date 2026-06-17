@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { UserIcon, PhoneIcon, MapPinIcon, EnvelopeIcon } from 'react-native-heroicons/outline';
+import { UserIcon, PhoneIcon, MapPinIcon, EnvelopeIcon, DocumentTextIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/api';
 
@@ -287,6 +287,21 @@ const ProfileScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
+          {/* Document Vault Button */}
+          <TouchableOpacity
+            style={styles.vaultButton}
+            onPress={() => navigation.navigate('DocumentVault')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.vaultIconBox}>
+              <DocumentTextIcon color="#4f46e5" size={24} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.vaultButtonTitle}>Document Vault</Text>
+              <Text style={styles.vaultButtonSub}>View payslips & ID proofs</Text>
+            </View>
+          </TouchableOpacity>
+
           {/* Logout */}
           <TouchableOpacity
             style={styles.logoutButton}
@@ -461,10 +476,41 @@ const styles = StyleSheet.create({
     borderColor: '#f43f5e',
   },
   logoutButtonText: {
-    color: '#f43f5e',
+    color: '#ef4444',
     fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+  },
+  vaultButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: '#94a3b8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  vaultIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#e0e7ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  vaultButtonTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  vaultButtonSub: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
   },
 });
 

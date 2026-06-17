@@ -12,10 +12,29 @@ import AdminDailyReportScreen from './src/screens/admin/AdminDailyReportScreen';
 import AdminMonthlyReportScreen from './src/screens/admin/AdminMonthlyReportScreen';
 import AttendanceHistoryScreen from './src/screens/AttendanceHistoryScreen';
 import HolidayScreen from './src/screens/HolidayScreen';
+import DocumentVaultScreen from './src/screens/DocumentVaultScreen';
+
+import { useEffect } from 'react';
+import { LogBox } from 'react-native';
+import { startOfflineSyncListener } from './src/utils/offlineSync';
+import { startGeofencing } from './src/utils/geofencing';
+
+LogBox.ignoreLogs([
+  'Background location is limited in Expo Go',
+  'Push notifications are not supported or loaded in Expo Go',
+  'DateTimePicker: `onChange` is deprecated'
+]);
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  useEffect(() => {
+    startGeofencing();
+    const unsubscribe = startOfflineSyncListener();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
   return (
     <SafeAreaProvider>
       <NavigationContainer>
@@ -29,6 +48,7 @@ export default function App() {
           <Stack.Screen name="AdminMonthlyReport" component={AdminMonthlyReportScreen} />
           <Stack.Screen name="AttendanceHistory" component={AttendanceHistoryScreen} />
           <Stack.Screen name="HolidayCalendar" component={HolidayScreen} />
+          <Stack.Screen name="DocumentVault" component={DocumentVaultScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
