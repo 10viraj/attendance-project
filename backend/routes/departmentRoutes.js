@@ -4,7 +4,7 @@ const { getDepartments, createDepartment } = require('../controllers/departmentC
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
 router.route('/')
-  .get(protect, getDepartments)
+  .get(getDepartments)
   .post(protect, authorize('Admin'), createDepartment);
 
 module.exports = router;

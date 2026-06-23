@@ -25,6 +25,32 @@ const getDashboardAnalytics = async (req, res, next) => {
 
     const attendancePercentage = totalEmployees > 0 ? (presentToday / totalEmployees) * 100 : 0;
 
+    // Calculate trendData for the past 5 days
+    const trendData = [];
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const nextDay = new Date(d);
+      nextDay.setDate(d.getDate() + 1);
+
+      const present = await Attendance.countDocuments({
+        date: { $gte: d, $lt: nextDay },
+        status: 'Present'
+      });
+      
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      trendData.push({ name: dayName, present, absent: totalEmployees - present });
+    }
+
+    // Calculate deptData
+    const deptData = await Employee.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$department', count: { $sum: 1 } } },
+      { $lookup: { from: 'departments', localField: '_id', foreignField: '_id', as: 'deptInfo' } },
+      { $unwind: { path: '$deptInfo', preserveNullAndEmptyArrays: true } },
+      { $project: { name: { $ifNull: ['$deptInfo.name', 'Unassigned'] }, count: 1, _id: 0 } }
+    ]);
+
     res.json({
       success: true,
       data: {
@@ -33,7 +59,9 @@ const getDashboardAnalytics = async (req, res, next) => {
         presentToday,
         absentToday: totalEmployees - presentToday,
         lateToday,
-        attendancePercentage: attendancePercentage.toFixed(2)
+        attendancePercentage: attendancePercentage.toFixed(2),
+        trendData,
+        deptData
       }
     });
   } catch (error) {

@@ -91,7 +91,9 @@ const DashboardScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      if (!error.response || error.response.status !== 401) {
+        console.error('Error loading dashboard data:', error);
+      }
       setStatus('Error loading status');
     } finally {
       setLoading(false);
@@ -104,38 +106,18 @@ const DashboardScreen = ({ navigation }) => {
     }, [])
   );
 
-  // Determine time of day
+  // Determine time of day for greeting
   const hour = new Date().getHours();
-  let timeTheme = {
-    greeting: 'Good Evening',
-    colors: ['#312e81', '#4f46e5'], // Default Night
-    shadow: '#3730a3'
-  };
+  let greeting = 'Good Evening';
 
   if (hour >= 5 && hour < 12) {
-    timeTheme = {
-      greeting: 'Good Morning',
-      colors: ['#f59e0b', '#fbbf24'],
-      shadow: '#d97706'
-    };
+    greeting = 'Good Morning';
   } else if (hour >= 12 && hour < 17) {
-    timeTheme = {
-      greeting: 'Good Afternoon',
-      colors: ['#0ea5e9', '#38bdf8'],
-      shadow: '#0284c7'
-    };
+    greeting = 'Good Afternoon';
   } else if (hour >= 17 && hour < 20) {
-    timeTheme = {
-      greeting: 'Good Evening',
-      colors: ['#f43f5e', '#fb923c'],
-      shadow: '#e11d48'
-    };
+    greeting = 'Good Evening';
   } else {
-    timeTheme = {
-      greeting: 'Good Night',
-      colors: ['#312e81', '#4f46e5'],
-      shadow: '#3730a3'
-    };
+    greeting = 'Good Night';
   }
 
   return (
@@ -143,7 +125,7 @@ const DashboardScreen = ({ navigation }) => {
       <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
       {/* Background Decorator */}
       <LinearGradient
-        colors={timeTheme.colors}
+        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerBackground}
@@ -163,19 +145,19 @@ const DashboardScreen = ({ navigation }) => {
           </View>
 
           {/* Quick Check-In Card */}
-          <View style={[styles.primaryCard, { shadowColor: timeTheme.shadow }]}>
+          <View style={[styles.primaryCard, { shadowColor: '#4f46e5' }]}>
             <View style={styles.statusRow}>
               <View>
                 <Text style={styles.statusLabel}>Current Status</Text>
-                <Text style={[styles.statusValue, { color: timeTheme.colors[0] }]}>
-                  {loading ? <ActivityIndicator color={timeTheme.colors[0]} size="small" /> : status}
+                <Text style={[styles.statusValue, { color: '#3b82f6' }]}>
+                  {loading ? <ActivityIndicator color="#3b82f6" size="small" /> : status}
                 </Text>
                 <Text style={styles.shiftInfo}>
                   Shift: {shiftName} ({shiftTime})
                 </Text>
               </View>
-              <View style={[styles.iconBoxLight, { backgroundColor: timeTheme.colors[0] + '1A' }]}>
-                <ClockIcon color={timeTheme.colors[0]} size={24} />
+              <View style={[styles.iconBoxLight, { backgroundColor: '#e0f2fe' }]}>
+                <ClockIcon color="#3b82f6" size={24} />
               </View>
             </View>
 
@@ -185,7 +167,7 @@ const DashboardScreen = ({ navigation }) => {
                 activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={timeTheme.colors}
+                  colors={['#4f46e5', '#3b82f6']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.actionButtonGradient}
@@ -495,15 +477,10 @@ const styles = StyleSheet.create({
 
 async function registerForPushNotificationsAsync() {
   if (!Notifications || Constants.appOwnership === 'expo') {
-    console.log('Push notifications are not supported or loaded in Expo Go.');
     return null;
   }
 
   let token;
-  if (!Notifications) {
-    console.log('Push notifications are not supported or loaded in Expo Go.');
-    return null;
-  }
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {

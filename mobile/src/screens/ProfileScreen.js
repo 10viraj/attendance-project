@@ -6,28 +6,7 @@ import { UserIcon, PhoneIcon, MapPinIcon, EnvelopeIcon, DocumentTextIcon } from 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../config/api';
 
-const THEMES = {
-  night: {
-    greeting: 'Good Night',
-    colors: ['#312e81', '#4f46e5'], // Night indigo
-    shadow: '#3730a3'
-  },
-  morning: {
-    greeting: 'Good Morning',
-    colors: ['#f59e0b', '#fbbf24'], // Morning amber/yellow
-    shadow: '#d97706'
-  },
-  afternoon: {
-    greeting: 'Good Afternoon',
-    colors: ['#0ea5e9', '#38bdf8'], // Afternoon sky blue
-    shadow: '#0284c7'
-  },
-  evening: {
-    greeting: 'Good Evening',
-    colors: ['#f43f5e', '#fb923c'], // Sunset rose/orange
-    shadow: '#e11d48'
-  }
-};
+
 
 const ProfileScreen = ({ navigation }) => {
   const [employee, setEmployee] = useState(null);
@@ -125,16 +104,16 @@ const ProfileScreen = ({ navigation }) => {
     );
   }
 
-  // Determine time of day
+  // Determine greeting
   const hour = new Date().getHours();
-  let timeTheme = THEMES.night;
+  let greeting = 'Good Night';
 
   if (hour >= 5 && hour < 12) {
-    timeTheme = THEMES.morning;
+    greeting = 'Good Morning';
   } else if (hour >= 12 && hour < 17) {
-    timeTheme = THEMES.afternoon;
+    greeting = 'Good Afternoon';
   } else if (hour >= 17 && hour < 20) {
-    timeTheme = THEMES.evening;
+    greeting = 'Good Evening';
   }
 
   return (
@@ -143,7 +122,7 @@ const ProfileScreen = ({ navigation }) => {
 
       {/* Vibrant Modern Gradient Header */}
       <LinearGradient
-        colors={timeTheme.colors}
+        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerBackground}
@@ -158,15 +137,15 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* Header Profile Info */}
           <View style={styles.profileHeader}>
-            <View style={[styles.avatarContainer, { shadowColor: timeTheme.shadow }]}>
+            <View style={[styles.avatarContainer, { shadowColor: '#4f46e5' }]}>
               <View style={styles.avatarInner}>
-                <Text style={[styles.avatarText, { color: timeTheme.colors[0] }]}>
+                <Text style={[styles.avatarText, { color: '#4f46e5' }]}>
                   {employee?.firstName?.[0] || 'U'}
                 </Text>
               </View>
             </View>
             <Text style={styles.greetingText}>
-              {timeTheme.greeting},
+              {greeting},
             </Text>
             <Text style={styles.userName}>
               {employee ? `${employee.firstName} ${employee.lastName || ''}`.trim() : 'User'}
@@ -273,10 +252,10 @@ const ProfileScreen = ({ navigation }) => {
               style={{ marginTop: 24 }}
             >
               <LinearGradient
-                colors={timeTheme.colors}
+                colors={['#4f46e5', '#3b82f6']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={[styles.saveButton, { shadowColor: timeTheme.shadow }]}
+                style={[styles.saveButton, { shadowColor: '#4f46e5' }]}
               >
                 {saving ? (
                   <ActivityIndicator color="#fff" />

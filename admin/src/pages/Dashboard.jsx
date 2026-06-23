@@ -9,33 +9,22 @@ const Dashboard = () => {
     presentToday: 0,
     absentToday: 0,
     lateToday: 0,
-    attendancePercentage: 0
+    attendancePercentage: 0,
+    trendData: [],
+    deptData: []
   });
 
   const [loading, setLoading] = useState(true);
-
-  // Mock data for charts
-  const trendData = [
-    { name: 'Mon', present: 120, absent: 5 },
-    { name: 'Tue', present: 118, absent: 7 },
-    { name: 'Wed', present: 122, absent: 3 },
-    { name: 'Thu', present: 115, absent: 10 },
-    { name: 'Fri', present: 121, absent: 4 },
-  ];
-
-  const deptData = [
-    { name: 'Engineering', count: 45 },
-    { name: 'Sales', count: 30 },
-    { name: 'HR', count: 12 },
-    { name: 'Marketing', count: 25 },
-    { name: 'Support', count: 13 },
-  ];
 
   useEffect(() => {
     const fetchAnalytics = async () => {
       try {
         const res = await api.get('/analytics');
-        setStats(res.data.data);
+        setStats({
+          ...res.data.data,
+          trendData: res.data.data.trendData || [],
+          deptData: res.data.data.deptData || []
+        });
       } catch (err) {
         console.error('Failed to fetch analytics', err);
       } finally {
@@ -107,10 +96,10 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Trend Chart */}
         <div className="card p-6 lg:col-span-2">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Attendance Trends</h3>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Attendance Trends (Last 5 Days)</h3>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={stats.trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -135,7 +124,7 @@ const Dashboard = () => {
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Employees by Department</h3>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={deptData} layout="vertical" margin={{ top: 0, right: 0, left: 20, bottom: 0 }}>
+              <BarChart data={stats.deptData} layout="vertical" margin={{ top: 0, right: 0, left: 20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />
                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} width={80} />

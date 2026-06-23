@@ -14,7 +14,7 @@ const generateToken = (id) => {
 // @access  Public (or Admin only depending on business rules)
 const registerUser = async (req, res, next) => {
   try {
-    const { email, password, role, firstName, lastName } = req.body;
+    const { email, password, role, firstName, lastName, department } = req.body;
 
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -42,7 +42,8 @@ const registerUser = async (req, res, next) => {
         user: user._id,
         employeeId: generatedEmployeeId,
         firstName,
-        lastName
+        lastName,
+        department: department || undefined
       });
 
       res.status(201).json({

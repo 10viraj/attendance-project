@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EnvelopeIcon, ShieldCheckIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const AdminProfileScreen = ({ navigation }) => {
   const [admin, setAdmin] = useState(null);
@@ -26,9 +27,14 @@ const AdminProfileScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#0f172a" barStyle="light-content" translucent={false} />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
       {/* Background colored header block */}
-      <View style={styles.headerBackground} />
+      <LinearGradient
+        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerBackground}
+      />
 
       <SafeAreaView style={styles.safeArea}>
         {/* Header Profile Info */}
@@ -90,7 +96,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 240,
-    backgroundColor: '#0f172a', // slate-900 (admin theme)
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },

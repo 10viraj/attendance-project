@@ -1,16 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FingerPrintIcon, KeyIcon, EnvelopeIcon, EyeIcon, EyeSlashIcon } from 'react-native-heroicons/solid';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { styled } from 'nativewind';
+import { LinearGradient } from 'expo-linear-gradient';
 import api from '../config/api';
 
-const StyledView = styled(View);
-const StyledText = styled(Text);
-const StyledTextInput = styled(TextInput);
-const StyledTouchableOpacity = styled(TouchableOpacity);
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -153,196 +149,554 @@ const LoginScreen = ({ navigation }) => {
     setHasSavedSession(false);
   };
 
+  // return (
+  //   <LinearGradient colors={['#4f46e5', '#3b82f6', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
+  //     <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+  //     <SafeAreaView className="flex-1">
+  //       <KeyboardAvoidingView
+  //         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  //         className="flex-1 justify-center px-6"
+  //       >
+  //         <View className="items-center mb-10">
+  //           <View className="w-16 h-16 bg-blue-500/15 rounded-2xl items-center justify-center mb-5">
+  //             <FingerPrintIcon size={32} color="#85B7EB" />
+  //           </View>
+  //           <Text className="text-white font-medium text-2xl text-center">
+  //             {hasSavedSession ? 'App is locked' : 'Welcome back'}
+  //           </Text>
+  //           <Text className="text-slate-400 mt-2 text-sm text-center">
+  //             {hasSavedSession ? 'Authenticate to continue' : 'Mark your attendance smartly'}
+  //           </Text>
+  //         </View>
+
+  //         <View className="w-full max-w-sm mx-auto">
+  //           {hasSavedSession ? (
+  //             <View className="items-center">
+  //               <TouchableOpacity
+  //                 className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600 mb-4"
+  //                 onPress={handleBiometricLogin}
+  //                 disabled={biometricLoading}
+  //                 accessibilityRole="button"
+  //                 accessibilityLabel="Unlock with biometrics"
+  //               >
+  //                 {biometricLoading ? (
+  //                   <ActivityIndicator color="#fff" />
+  //                 ) : (
+  //                   <>
+  //                     <FingerPrintIcon size={18} color="#fff" />
+  //                     <Text className="text-white font-medium text-base ml-2">
+  //                       Unlock with biometrics
+  //                     </Text>
+  //                   </>
+  //                 )}
+  //               </TouchableOpacity>
+
+  //               {formError ? (
+  //                 <Text className="text-red-400 text-sm text-center mb-3">{formError}</Text>
+  //               ) : null}
+
+  //               <TouchableOpacity onPress={switchAccount} accessibilityRole="button">
+  //                 <Text className="text-blue-400 font-medium text-sm">
+  //                   Log in with a different account
+  //                 </Text>
+  //               </TouchableOpacity>
+  //             </View>
+  //           ) : (
+  //             <>
+  //               <View className="mb-1">
+  //                 <Text className="text-slate-400 text-xs mb-1.5 ml-1">Email address</Text>
+  //                 <View
+  //                   className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.email
+  //                       ? 'border-red-500/60'
+  //                       : emailFocused
+  //                         ? 'border-blue-400/60'
+  //                         : 'border-white/10'
+  //                     }`}
+  //                 >
+  //                   <EnvelopeIcon size={18} color="#64748b" />
+  //                   <TextInput
+  //                     className="flex-1 ml-3 text-white text-sm"
+  //                     placeholder="you@company.com"
+  //                     placeholderTextColor="#64748b"
+  //                     autoCapitalize="none"
+  //                     autoComplete="email"
+  //                     keyboardType="email-address"
+  //                     returnKeyType="next"
+  //                     value={email}
+  //                     onChangeText={(t) => {
+  //                       setEmail(t);
+  //                       if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' }));
+  //                     }}
+  //                     onFocus={() => setEmailFocused(true)}
+  //                     onBlur={() => setEmailFocused(false)}
+  //                     onSubmitEditing={() => passwordInputRef.current?.focus()}
+  //                   />
+  //                 </View>
+  //                 {fieldErrors.email ? (
+  //                   <Text className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.email}</Text>
+  //                 ) : null}
+  //               </View>
+
+  //               <View className="mt-3 mb-1">
+  //                 <Text className="text-slate-400 text-xs mb-1.5 ml-1">Password</Text>
+  //                 <View
+  //                   className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.password
+  //                       ? 'border-red-500/60'
+  //                       : passwordFocused
+  //                         ? 'border-blue-400/60'
+  //                         : 'border-white/10'
+  //                     }`}
+  //                 >
+  //                   <KeyIcon size={18} color="#64748b" />
+  //                   <TextInput
+  //                     ref={passwordInputRef}
+  //                     className="flex-1 ml-3 text-white text-sm"
+  //                     placeholder="••••••••"
+  //                     placeholderTextColor="#64748b"
+  //                     autoCapitalize="none"
+  //                     autoComplete="password"
+  //                     secureTextEntry={!showPassword}
+  //                     returnKeyType="done"
+  //                     value={password}
+  //                     onChangeText={(t) => {
+  //                       setPassword(t);
+  //                       if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' }));
+  //                     }}
+  //                     onFocus={() => setPasswordFocused(true)}
+  //                     onBlur={() => setPasswordFocused(false)}
+  //                     onSubmitEditing={handleLogin}
+  //                   />
+  //                   <TouchableOpacity
+  //                     onPress={() => setShowPassword((v) => !v)}
+  //                     accessibilityRole="button"
+  //                     accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+  //                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+  //                   >
+  //                     {showPassword ? (
+  //                       <EyeSlashIcon size={18} color="#64748b" />
+  //                     ) : (
+  //                       <EyeIcon size={18} color="#64748b" />
+  //                     )}
+  //                   </TouchableOpacity>
+  //                 </View>
+  //                 {fieldErrors.password ? (
+  //                   <Text className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.password}</Text>
+  //                 ) : null}
+  //               </View>
+
+  //               <View className="items-end mt-1 mb-5">
+  //                 <TouchableOpacity
+  //                   onPress={() => navigation.navigate('ForgotPassword')}
+  //                   accessibilityRole="button"
+  //                 >
+  //                   <Text className="text-blue-400 text-xs font-medium">Forgot password?</Text>
+  //                 </TouchableOpacity>
+  //               </View>
+
+  //               {formError ? (
+  //                 <Text className="text-red-400 text-sm text-center mb-3">{formError}</Text>
+  //               ) : null}
+
+  //               <TouchableOpacity
+  //                 className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600"
+  //                 onPress={handleLogin}
+  //                 disabled={loading}
+  //                 accessibilityRole="button"
+  //               >
+  //                 {loading ? (
+  //                   <ActivityIndicator color="#fff" />
+  //                 ) : (
+  //                   <Text className="text-white font-medium text-base">Log in</Text>
+  //                 )}
+  //               </TouchableOpacity>
+
+  //               <View className="flex-row items-center my-5">
+  //                 <View className="flex-1 h-px bg-white/10" />
+  //                 <Text className="text-slate-500 text-xs mx-3">or</Text>
+  //                 <View className="flex-1 h-px bg-white/10" />
+  //               </View>
+
+  //               <TouchableOpacity
+  //                 className="w-full flex-row items-center justify-center py-3 rounded-xl border border-white/10 active:bg-white/5"
+  //                 onPress={handleBiometricLogin}
+  //                 accessibilityRole="button"
+  //               >
+  //                 <FingerPrintIcon size={18} color="#85B7EB" />
+  //                 <Text className="text-slate-300 font-medium text-sm ml-2">
+  //                   Use biometrics instead
+  //                 </Text>
+  //               </TouchableOpacity>
+
+  //               <View className="flex-row justify-center items-center mt-7">
+  //                 <Text className="text-slate-400 text-sm">Don't have an account? </Text>
+  //                 <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+  //                   <Text className="text-blue-400 font-medium text-sm">Sign up</Text>
+  //                 </TouchableOpacity>
+  //               </View>
+  //             </>
+  //           )}
+  //         </View>
+  //       </KeyboardAvoidingView>
+  //     </SafeAreaView>
+  //   </LinearGradient>
+  // );
   return (
-    <StyledView className="flex-1 bg-slate-950">
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <SafeAreaView className="flex-1">
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FFFFFF"
+      />
+
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="flex-1 justify-center px-6"
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
         >
-          <StyledView className="items-center mb-10">
-            <StyledView className="w-16 h-16 bg-blue-500/15 rounded-2xl items-center justify-center mb-5">
-              <FingerPrintIcon size={32} color="#85B7EB" />
-            </StyledView>
-            <StyledText className="text-white font-medium text-2xl text-center">
-              {hasSavedSession ? 'App is locked' : 'Welcome back'}
-            </StyledText>
-            <StyledText className="text-slate-400 mt-2 text-sm text-center">
-              {hasSavedSession ? 'Authenticate to continue' : 'Mark your attendance smartly'}
-            </StyledText>
-          </StyledView>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingHorizontal: 28,
+              paddingTop: 40,
+              paddingBottom: 30,
+            }}
+          >
+            {/* Header */}
+            <View style={{ marginBottom: 40 }}>
+              <View
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  backgroundColor: '#F3F4F6',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginBottom: 24,
+                }}
+              >
+                <View
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 8,
+                    backgroundColor: '#2F67F6',
+                  }}
+                />
+              </View>
 
-          <StyledView className="w-full max-w-sm mx-auto">
-            {hasSavedSession ? (
-              <StyledView className="items-center">
-                <StyledTouchableOpacity
-                  className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600 mb-4"
-                  onPress={handleBiometricLogin}
-                  disabled={biometricLoading}
-                  accessibilityRole="button"
-                  accessibilityLabel="Unlock with biometrics"
+              <Text
+                style={{
+                  fontSize: 28,
+                  fontWeight: '800',
+                  color: '#0F172A',
+                  lineHeight: 36,
+                  marginBottom: 12,
+                }}
+              >
+                Sign in to your{'\n'}account
+              </Text>
+
+              <Text
+                style={{
+                  fontSize: 15,
+                  lineHeight: 24,
+                  color: '#6B7280',
+                }}
+              >
+                Enter your enterprise credentials to securely access your
+                workspace.
+              </Text>
+            </View>
+
+            {/* Email */}
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: '700',
+                color: '#1F2937',
+                marginBottom: 8,
+              }}
+            >
+              Email address
+            </Text>
+
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                height: 56,
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                backgroundColor: '#FFFFFF',
+              }}
+            >
+              <EnvelopeIcon size={20} color="#9CA3AF" />
+
+              <TextInput
+                placeholder="name@company.com"
+                placeholderTextColor="#9CA3AF"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                  fontSize: 16,
+                  color: '#111827',
+                }}
+              />
+            </View>
+
+            {fieldErrors.email ? (
+              <Text
+                style={{
+                  color: '#EF4444',
+                  marginTop: 8,
+                }}
+              >
+                {fieldErrors.email}
+              </Text>
+            ) : null}
+
+            {/* Password Header */}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 24,
+                marginBottom: 8,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: '#1F2937',
+                }}
+              >
+                Password
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ForgotPassword')}
+              >
+                <Text
+                  style={{
+                    color: '#2F67F6',
+                    fontWeight: '600',
+                    fontSize: 14,
+                  }}
                 >
-                  {biometricLoading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <FingerPrintIcon size={18} color="#fff" />
-                      <StyledText className="text-white font-medium text-base ml-2">
-                        Unlock with biometrics
-                      </StyledText>
-                    </>
-                  )}
-                </StyledTouchableOpacity>
+                  Forgot password?
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-                {formError ? (
-                  <StyledText className="text-red-400 text-sm text-center mb-3">{formError}</StyledText>
-                ) : null}
+            {/* Password Input */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                height: 56,
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                backgroundColor: '#FFFFFF',
+              }}
+            >
+              <KeyIcon size={20} color="#9CA3AF" />
 
-                <StyledTouchableOpacity onPress={switchAccount} accessibilityRole="button">
-                  <StyledText className="text-blue-400 font-medium text-sm">
-                    Log in with a different account
-                  </StyledText>
-                </StyledTouchableOpacity>
-              </StyledView>
-            ) : (
-              <>
-                <StyledView className="mb-1">
-                  <StyledText className="text-slate-400 text-xs mb-1.5 ml-1">Email address</StyledText>
-                  <StyledView
-                    className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.email
-                        ? 'border-red-500/60'
-                        : emailFocused
-                          ? 'border-blue-400/60'
-                          : 'border-white/10'
-                      }`}
-                  >
-                    <EnvelopeIcon size={18} color="#64748b" />
-                    <StyledTextInput
-                      className="flex-1 ml-3 text-white text-sm"
-                      placeholder="you@company.com"
-                      placeholderTextColor="#64748b"
-                      autoCapitalize="none"
-                      autoComplete="email"
-                      keyboardType="email-address"
-                      returnKeyType="next"
-                      value={email}
-                      onChangeText={(t) => {
-                        setEmail(t);
-                        if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' }));
-                      }}
-                      onFocus={() => setEmailFocused(true)}
-                      onBlur={() => setEmailFocused(false)}
-                      onSubmitEditing={() => passwordInputRef.current?.focus()}
-                    />
-                  </StyledView>
-                  {fieldErrors.email ? (
-                    <StyledText className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.email}</StyledText>
-                  ) : null}
-                </StyledView>
+              <TextInput
+                placeholder="••••••••"
+                placeholderTextColor="#9CA3AF"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                style={{
+                  flex: 1,
+                  marginLeft: 12,
+                  fontSize: 16,
+                  color: '#111827',
+                }}
+              />
 
-                <StyledView className="mt-3 mb-1">
-                  <StyledText className="text-slate-400 text-xs mb-1.5 ml-1">Password</StyledText>
-                  <StyledView
-                    className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.password
-                        ? 'border-red-500/60'
-                        : passwordFocused
-                          ? 'border-blue-400/60'
-                          : 'border-white/10'
-                      }`}
-                  >
-                    <KeyIcon size={18} color="#64748b" />
-                    <StyledTextInput
-                      ref={passwordInputRef}
-                      className="flex-1 ml-3 text-white text-sm"
-                      placeholder="••••••••"
-                      placeholderTextColor="#64748b"
-                      autoCapitalize="none"
-                      autoComplete="password"
-                      secureTextEntry={!showPassword}
-                      returnKeyType="done"
-                      value={password}
-                      onChangeText={(t) => {
-                        setPassword(t);
-                        if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' }));
-                      }}
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={() => setPasswordFocused(false)}
-                      onSubmitEditing={handleLogin}
-                    />
-                    <StyledTouchableOpacity
-                      onPress={() => setShowPassword((v) => !v)}
-                      accessibilityRole="button"
-                      accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      {showPassword ? (
-                        <EyeSlashIcon size={18} color="#64748b" />
-                      ) : (
-                        <EyeIcon size={18} color="#64748b" />
-                      )}
-                    </StyledTouchableOpacity>
-                  </StyledView>
-                  {fieldErrors.password ? (
-                    <StyledText className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.password}</StyledText>
-                  ) : null}
-                </StyledView>
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {showPassword ? (
+                  <EyeSlashIcon size={20} color="#9CA3AF" />
+                ) : (
+                  <EyeIcon size={20} color="#9CA3AF" />
+                )}
+              </TouchableOpacity>
+            </View>
 
-                <StyledView className="items-end mt-1 mb-5">
-                  <StyledTouchableOpacity
-                    onPress={() => navigation.navigate('ForgotPassword')}
-                    accessibilityRole="button"
-                  >
-                    <StyledText className="text-blue-400 text-xs font-medium">Forgot password?</StyledText>
-                  </StyledTouchableOpacity>
-                </StyledView>
+            {fieldErrors.password ? (
+              <Text
+                style={{
+                  color: '#EF4444',
+                  marginTop: 8,
+                }}
+              >
+                {fieldErrors.password}
+              </Text>
+            ) : null}
 
-                {formError ? (
-                  <StyledText className="text-red-400 text-sm text-center mb-3">{formError}</StyledText>
-                ) : null}
+            {formError ? (
+              <Text
+                style={{
+                  color: '#EF4444',
+                  textAlign: 'center',
+                  marginTop: 20,
+                }}
+              >
+                {formError}
+              </Text>
+            ) : null}
 
-                <StyledTouchableOpacity
-                  className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600"
-                  onPress={handleLogin}
-                  disabled={loading}
-                  accessibilityRole="button"
+            {/* Sign In Button */}
+            <TouchableOpacity
+              onPress={handleLogin}
+              disabled={loading}
+              style={{
+                height: 56,
+                backgroundColor: '#2F67F6',
+                borderRadius: 16,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginTop: 32,
+                shadowColor: '#2F67F6',
+                shadowOffset: {
+                  width: 0,
+                  height: 6,
+                },
+                shadowOpacity: 0.25,
+                shadowRadius: 10,
+                elevation: 6,
+              }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text
+                  style={{
+                    color: '#FFFFFF',
+                    fontSize: 16,
+                    fontWeight: '700',
+                  }}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <StyledText className="text-white font-medium text-base">Log in</StyledText>
-                  )}
-                </StyledTouchableOpacity>
+                  Sign In
+                </Text>
+              )}
+            </TouchableOpacity>
 
-                <StyledView className="flex-row items-center my-5">
-                  <StyledView className="flex-1 h-px bg-white/10" />
-                  <StyledText className="text-slate-500 text-xs mx-3">or</StyledText>
-                  <StyledView className="flex-1 h-px bg-white/10" />
-                </StyledView>
+            {/* Divider */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginVertical: 32,
+              }}
+            >
+              <View
+                style={{
+                  flex: 1,
+                  height: 1,
+                  backgroundColor: '#E5E7EB',
+                }}
+              />
 
-                <StyledTouchableOpacity
-                  className="w-full flex-row items-center justify-center py-3 rounded-xl border border-white/10 active:bg-white/5"
-                  onPress={handleBiometricLogin}
-                  accessibilityRole="button"
+              <Text
+                style={{
+                  marginHorizontal: 16,
+                  color: '#9CA3AF',
+                  fontSize: 14,
+                  fontWeight: '500',
+                }}
+              >
+                OR
+              </Text>
+
+              <View
+                style={{
+                  flex: 1,
+                  height: 1,
+                  backgroundColor: '#E5E7EB',
+                }}
+              />
+            </View>
+
+            {/* Biometrics */}
+            <TouchableOpacity
+              onPress={handleBiometricLogin}
+              style={{
+                height: 56,
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+                borderRadius: 16,
+                justifyContent: 'center',
+                alignItems: 'center',
+                flexDirection: 'row',
+                backgroundColor: '#FFFFFF',
+              }}
+            >
+              <FingerPrintIcon size={20} color="#111827" />
+
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: '600',
+                  color: '#111827',
+                  marginLeft: 10,
+                }}
+              >
+                Sign in with Biometrics
+              </Text>
+            </TouchableOpacity>
+
+            {/* Footer */}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginTop: 32,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#6B7280',
+                  fontSize: 14,
+                }}
+              >
+                Don't have an account?
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Register')}
+              >
+                <Text
+                  style={{
+                    color: '#2F67F6',
+                    fontSize: 14,
+                    fontWeight: '600',
+                    marginLeft: 6,
+                  }}
                 >
-                  <FingerPrintIcon size={18} color="#85B7EB" />
-                  <StyledText className="text-slate-300 font-medium text-sm ml-2">
-                    Use biometrics instead
-                  </StyledText>
-                </StyledTouchableOpacity>
-
-                <StyledView className="flex-row justify-center items-center mt-7">
-                  <StyledText className="text-slate-400 text-sm">Don't have an account? </StyledText>
-                  <StyledTouchableOpacity onPress={() => navigation.navigate('Register')}>
-                    <StyledText className="text-blue-400 font-medium text-sm">Sign up</StyledText>
-                  </StyledTouchableOpacity>
-                </StyledView>
-              </>
-            )}
-          </StyledView>
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </StyledView>
+    </View>
   );
 };
 

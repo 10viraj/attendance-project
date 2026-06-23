@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Dimensions, Modal, FlatList, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UsersIcon, CheckCircleIcon, XCircleIcon, ClockIcon, UserGroupIcon, CalendarIcon, ArrowTrendingUpIcon } from 'react-native-heroicons/outline';
+import { UsersIcon, CheckCircleIcon, XCircleIcon, ClockIcon, UserGroupIcon, CalendarIcon, ArrowTrendingUpIcon, PlusIcon, BriefcaseIcon } from 'react-native-heroicons/outline';
 import { UsersIcon as UsersSolid, UserGroupIcon as UserGroupSolid } from 'react-native-heroicons/solid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -13,6 +13,56 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [admin, setAdmin] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Department Management States
+  const [showDeptModal, setShowDeptModal] = useState(false);
+  const [deptsList, setDeptsList] = useState([]);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptDesc, setNewDeptDesc] = useState('');
+  const [deptLoading, setDeptLoading] = useState(false);
+  const [deptSubmitting, setDeptSubmitting] = useState(false);
+
+  const fetchDepartments = async () => {
+    setDeptLoading(true);
+    try {
+      const response = await api.get('/departments');
+      if (response.data && response.data.success) {
+        setDeptsList(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    } finally {
+      setDeptLoading(false);
+    }
+  };
+
+  const handleCreateDepartment = async () => {
+    if (!newDeptName.trim()) {
+      Alert.alert('Validation Error', 'Department name is required');
+      return;
+    }
+    setDeptSubmitting(true);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await api.post(
+        '/departments',
+        { name: newDeptName.trim(), description: newDeptDesc.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data && response.data.success) {
+        setNewDeptName('');
+        setNewDeptDesc('');
+        Alert.alert('Success', `Department "${response.data.data.name}" created successfully!`);
+        await fetchDepartments();
+        await loadDashboardData(); // Refresh count on dashboard
+      }
+    } catch (error) {
+      console.error('Create Department Error:', error.response?.data || error.message);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to create department');
+    } finally {
+      setDeptSubmitting(false);
+    }
+  };
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -44,9 +94,9 @@ const AdminDashboardScreen = ({ navigation }) => {
   );
 
   const StatCard = ({ title, value, icon: Icon, bgColor, iconColor, trend, onPress }) => (
-    <TouchableOpacity 
-      style={styles.statCard} 
-      activeOpacity={onPress ? 0.7 : 1} 
+    <TouchableOpacity
+      style={styles.statCard}
+      activeOpacity={onPress ? 0.7 : 1}
       onPress={onPress}
       disabled={!onPress}
     >
@@ -73,7 +123,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar backgroundColor="#f8fafc" barStyle="dark-content" translucent={false} />
-      
+
       <SafeAreaView style={styles.safeArea}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
@@ -86,15 +136,15 @@ const AdminDashboardScreen = ({ navigation }) => {
               </Text>
             </View>
             <View style={styles.avatarContainer}>
-               <Text style={styles.avatarText}>{admin?.firstName?.[0] || 'A'}</Text>
+              <Text style={styles.avatarText}>{admin?.firstName?.[0] || 'A'}</Text>
             </View>
           </View>
 
           {/* Primary Action Row */}
           <View style={styles.actionRow}>
             <Text style={styles.sectionTitle}>Today's Metrics</Text>
-            <TouchableOpacity 
-              style={styles.reportButton} 
+            <TouchableOpacity
+              style={styles.reportButton}
               activeOpacity={0.8}
               onPress={() => navigation.navigate('AdminMonthlyReport')}
             >
@@ -112,16 +162,16 @@ const AdminDashboardScreen = ({ navigation }) => {
               {/* Main Main Overview Chart / Card */}
               <View style={styles.primaryCard}>
                 <View style={styles.primaryCardContent}>
-                   <View>
-                      <Text style={styles.primaryLabel}>Overall Attendance</Text>
-                      <View style={{flexDirection: 'row', alignItems: 'flex-end', marginTop: 4}}>
-                         <Text style={styles.primaryValue}>{analytics.attendancePercentage}</Text>
-                         <Text style={styles.primaryPercent}>%</Text>
-                      </View>
-                   </View>
-                   <View style={styles.circularProgress}>
-                      <Text style={styles.circularProgressText}>{analytics.attendancePercentage}%</Text>
-                   </View>
+                  <View>
+                    <Text style={styles.primaryLabel}>Overall Attendance</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 4 }}>
+                      <Text style={styles.primaryValue}>{analytics.attendancePercentage}</Text>
+                      <Text style={styles.primaryPercent}>%</Text>
+                    </View>
+                  </View>
+                  <View style={styles.circularProgress}>
+                    <Text style={styles.circularProgressText}>{analytics.attendancePercentage}%</Text>
+                  </View>
                 </View>
                 <View style={styles.progressBarContainer}>
                   <View style={[styles.progressBar, { width: `${analytics.attendancePercentage}%` }]} />
@@ -132,46 +182,46 @@ const AdminDashboardScreen = ({ navigation }) => {
               {/* Grid of Stats matching Web UI */}
               <View style={styles.statsGrid}>
                 {/* Total Employees */}
-                <StatCard 
-                  title="Total Employees" 
-                  value={analytics.totalEmployees} 
-                  icon={UsersSolid} 
-                  bgColor="#eff6ff" 
-                  iconColor="#3b82f6" 
-                  trend="+2.5%" 
+                <StatCard
+                  title="Total Employees"
+                  value={analytics.totalEmployees}
+                  icon={UsersSolid}
+                  bgColor="#eff6ff"
+                  iconColor="#3b82f6"
+                  trend="+2.5%"
                   onPress={() => navigation.navigate('AdminEmployees')}
                 />
-                
+
                 {/* Present Today */}
-                <StatCard 
-                  title="Present Today" 
-                  value={analytics.presentToday} 
-                  icon={CheckCircleIcon} 
-                  bgColor="#ecfdf5" 
-                  iconColor="#10b981" 
-                  trend="+5%" 
+                <StatCard
+                  title="Present Today"
+                  value={analytics.presentToday}
+                  icon={CheckCircleIcon}
+                  bgColor="#ecfdf5"
+                  iconColor="#10b981"
+                  trend="+5%"
                   onPress={() => navigation.navigate('AdminDailyReport', { initialTab: 'present' })}
                 />
               </View>
 
               <View style={styles.statsGrid}>
                 {/* Late Arrivals */}
-                <StatCard 
-                  title="Late Arrivals" 
-                  value={analytics.lateToday} 
-                  icon={ClockIcon} 
-                  bgColor="#fffbeb" 
-                  iconColor="#f59e0b" 
+                <StatCard
+                  title="Late Arrivals"
+                  value={analytics.lateToday}
+                  icon={ClockIcon}
+                  bgColor="#fffbeb"
+                  iconColor="#f59e0b"
                   onPress={() => navigation.navigate('AdminDailyReport', { initialTab: 'late' })}
                 />
 
                 {/* On Leave (Absent) */}
-                <StatCard 
-                  title="On Leave" 
-                  value={analytics.absentToday} 
-                  icon={XCircleIcon} 
-                  bgColor="#fff1f2" 
-                  iconColor="#e11d48" 
+                <StatCard
+                  title="On Leave"
+                  value={analytics.absentToday}
+                  icon={XCircleIcon}
+                  bgColor="#fff1f2"
+                  iconColor="#e11d48"
                   onPress={() => navigation.navigate('AdminDailyReport', { initialTab: 'leave' })}
                 />
               </View>
@@ -183,7 +233,15 @@ const AdminDashboardScreen = ({ navigation }) => {
                   <Text style={styles.wideCardValue}>{analytics.totalDepartments}</Text>
                 </View>
                 <Text style={styles.wideCardSub}>Active departments in the organization</Text>
-                <TouchableOpacity style={styles.manageButton}>
+                <TouchableOpacity
+                  style={styles.manageButton}
+                  onPress={() => {
+                    setShowDeptModal(true);
+                    fetchDepartments();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Manage Departments"
+                >
                   <Text style={styles.manageButtonText}>Manage Departments</Text>
                 </TouchableOpacity>
               </View>
@@ -197,6 +255,89 @@ const AdminDashboardScreen = ({ navigation }) => {
 
         </ScrollView>
       </SafeAreaView>
+
+      {/* Manage Departments Modal */}
+      <Modal
+        visible={showDeptModal}
+        transparent={true}
+        animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+        onRequestClose={() => setShowDeptModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={Platform.OS === 'web' ? styles.webModalOverlay : styles.modalOverlay}
+        >
+          <View style={Platform.OS === 'web' ? styles.webModalContent : styles.modalContent}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Manage Departments</Text>
+              <TouchableOpacity onPress={() => setShowDeptModal(false)}>
+                <Text style={styles.closeText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Create New Department Form */}
+            <View style={styles.formContainer}>
+              <Text style={styles.formLabel}>Create New Department</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Department Name (e.g. Engineering)"
+                placeholderTextColor="#94a3b8"
+                value={newDeptName}
+                onChangeText={setNewDeptName}
+              />
+              <TextInput
+                style={[styles.textInput, { height: 50, textAlignVertical: 'top', paddingTop: 10 }]}
+                placeholder="Description (optional)"
+                placeholderTextColor="#94a3b8"
+                multiline
+                numberOfLines={2}
+                value={newDeptDesc}
+                onChangeText={setNewDeptDesc}
+              />
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={handleCreateDepartment}
+                disabled={deptSubmitting}
+              >
+                {deptSubmitting ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.addButtonText}>Add Department</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* List of Current Departments */}
+            <Text style={styles.listHeader}>Existing Departments ({deptsList.length})</Text>
+            {deptLoading ? (
+              <ActivityIndicator color="#2563eb" style={{ marginVertical: 20 }} />
+            ) : (
+              <FlatList
+                data={deptsList}
+                keyExtractor={(item) => item._id}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                renderItem={({ item }) => (
+                  <View style={styles.deptItem}>
+                    <View style={styles.deptIconBox}>
+                      <BriefcaseIcon color="#2563eb" size={20} />
+                    </View>
+                    <View style={styles.deptInfo}>
+                      <Text style={styles.deptName}>{item.name}</Text>
+                      {item.description ? (
+                        <Text style={styles.deptDesc} numberOfLines={1}>{item.description}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
+                ListEmptyComponent={
+                  <Text style={styles.emptyListText}>No departments configured yet.</Text>
+                }
+              />
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -462,6 +603,142 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#ef4444',
     fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  closeText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  formContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 12,
+  },
+  textInput: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    fontSize: 14,
+    color: '#0f172a',
+    marginBottom: 12,
+  },
+  addButton: {
+    backgroundColor: '#2563eb',
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  addButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  listHeader: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 12,
+  },
+  deptItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  deptIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  deptInfo: {
+    flex: 1,
+  },
+  deptName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  deptDesc: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  emptyListText: {
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginVertical: 20,
+    fontStyle: 'italic',
+  },
+  webModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  webModalContent: {
+    backgroundColor: '#ffffff',
+    width: 450,
+    height: '100%',
+    padding: 24,
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderLeftWidth: 1,
+    borderLeftColor: '#e2e8f0',
+    shadowColor: '#000000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
   },
 });
 

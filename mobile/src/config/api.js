@@ -18,6 +18,7 @@ api.interceptors.response.use(
       // Token is invalid or expired
       const AsyncStorage = require('@react-native-async-storage/async-storage').default;
       const { Alert } = require('react-native');
+      const { resetRoot } = require('../navigation/navigationRef');
       
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('userInfo');
@@ -26,7 +27,15 @@ api.interceptors.response.use(
       Alert.alert(
         'Session Expired',
         'Your session has expired. Please log in again.',
-        [{ text: 'OK' }]
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            resetRoot({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
+        }]
       );
     }
     return Promise.reject(error);

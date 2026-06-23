@@ -5,6 +5,7 @@ import { CalendarDaysIcon, DocumentTextIcon } from 'react-native-heroicons/outli
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { LinearGradient } from 'expo-linear-gradient';
 import api from '../config/api';
 
 const LEAVE_TYPES = ['Casual', 'Sick', 'Earned'];
@@ -127,8 +128,13 @@ const LeaveScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#2563eb" barStyle="light-content" translucent={false} />
-      <View style={styles.headerBackground} />
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <LinearGradient
+        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerBackground}
+      />
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerRow}>
@@ -320,7 +326,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 180,
-    backgroundColor: '#2563eb', // primary-600
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },

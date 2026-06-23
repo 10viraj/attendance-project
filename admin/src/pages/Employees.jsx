@@ -6,6 +6,7 @@ const Employees = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     fetchEmployees();
@@ -14,10 +15,12 @@ const Employees = () => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
+      setErrorMsg(null);
       const res = await api.get('/employees');
-      setEmployees(res.data.data);
+      setEmployees(res.data.data || []);
     } catch (err) {
       console.error(err);
+      setErrorMsg(err.response?.data?.message || err.message || 'Failed to fetch');
     } finally {
       setLoading(false);
     }
@@ -74,6 +77,10 @@ const Employees = () => {
               {loading ? (
                 <tr>
                   <td colSpan="5" className="px-6 py-8 text-center text-slate-500">Loading...</td>
+                </tr>
+              ) : errorMsg ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-red-500 font-medium">Error: {errorMsg}</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>

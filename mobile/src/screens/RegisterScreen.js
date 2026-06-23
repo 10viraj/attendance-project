@@ -1,20 +1,12 @@
-import { useState, useRef, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar } from 'react-native';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar, Modal, FlatList, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UserPlusIcon, UserIcon, EnvelopeIcon, KeyIcon, EyeIcon, EyeSlashIcon, CheckIcon } from 'react-native-heroicons/solid';
-import { styled } from 'nativewind';
+import { UserPlusIcon, UserIcon, EnvelopeIcon, KeyIcon, EyeIcon, EyeSlashIcon, CheckIcon, BriefcaseIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
 import api from '../config/api';
-
-const StyledView = styled(View);
-const StyledText = styled(Text);
-const StyledTextInput = styled(TextInput);
-const StyledTouchableOpacity = styled(TouchableOpacity);
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
-// Splits a full name into first/last without assuming a hardcoded fallback.
-// Handles single names, extra whitespace, and multi-word last names.
 const splitName = (fullName) => {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: '', lastName: '' };
@@ -41,25 +33,51 @@ const RegisterScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', password: '', terms: '' });
+  const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', password: '', terms: '', department: '' });
   const [formError, setFormError] = useState('');
-  const [focused, setFocused] = useState({ name: false, email: false, password: false });
+  const [focused, setFocused] = useState({ name: false, email: false, password: false, department: false });
+  const [departments, setDepartments] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('');
+  const [showDeptModal, setShowDeptModal] = useState(false);
 
   const emailInputRef = useRef(null);
   const passwordInputRef = useRef(null);
 
   const strength = useMemo(() => getPasswordStrength(password), [password]);
+  const strengthColors = ['#cbd5e1', '#ef4444', '#f59e0b', '#3b82f6', '#10b981'];
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await api.get('/departments');
+        if (response.data && response.data.success) {
+          setDepartments(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error.response?.data || error.message);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const validate = () => {
-    const errors = { name: '', email: '', password: '', terms: '' };
+    const errors = { name: '', email: '', password: '', terms: '', department: '' };
 
     if (!name.trim()) {
       errors.name = 'Name is required';
+    } else {
+      const { lastName } = splitName(name);
+      if (!lastName) {
+        errors.name = 'Please enter your full name (first and last name)';
+      }
     }
     if (!email.trim()) {
       errors.email = 'Email is required';
     } else if (!EMAIL_REGEX.test(email.trim())) {
       errors.email = 'Enter a valid email address';
+    }
+    if (!selectedDepartment) {
+      errors.department = 'Department is required';
     }
     if (!password) {
       errors.password = 'Password is required';
@@ -71,7 +89,7 @@ const RegisterScreen = ({ navigation }) => {
     }
 
     setFieldErrors(errors);
-    return !errors.name && !errors.email && !errors.password && !errors.terms;
+    return !errors.name && !errors.email && !errors.password && !errors.terms && !errors.department;
   };
 
   const handleRegister = async () => {
@@ -88,6 +106,7 @@ const RegisterScreen = ({ navigation }) => {
         email: email.trim(),
         password,
         role: 'Employee',
+        department: selectedDepartment,
       });
 
       if (response.data && response.data.token) {
@@ -103,210 +122,507 @@ const RegisterScreen = ({ navigation }) => {
     }
   };
 
-  const strengthColors = ['#64748b', '#E24B4A', '#EF9F27', '#378ADD', '#5DCAA5'];
-
   return (
-    <StyledView className="flex-1 bg-slate-950">
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <SafeAreaView className="flex-1">
+    <View style={styles.container}>
+      <StatusBar backgroundColor="#ffffff" barStyle="dark-content" translucent={false} />
+
+      <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="flex-1 justify-center px-6"
+          style={styles.keyboardView}
         >
-          <StyledView className="items-center mb-8">
-            <StyledView className="w-16 h-16 bg-blue-500/15 rounded-2xl items-center justify-center mb-5">
-              <UserPlusIcon size={30} color="#85B7EB" />
-            </StyledView>
-            <StyledText className="text-white font-medium text-2xl text-center">Create account</StyledText>
-            <StyledText className="text-slate-400 mt-2 text-sm text-center px-4">
-              Join the team and manage attendance smartly
-            </StyledText>
-          </StyledView>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-          <StyledView className="w-full max-w-sm mx-auto">
-            {/* Name */}
-            <StyledView className="mb-1">
-              <StyledText className="text-slate-400 text-xs mb-1.5 ml-1">Full name</StyledText>
-              <StyledView
-                className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.name ? 'border-red-500/60' : focused.name ? 'border-blue-400/60' : 'border-white/10'
-                  }`}
-              >
-                <UserIcon size={18} color="#64748b" />
-                <StyledTextInput
-                  className="flex-1 ml-3 text-white text-sm"
-                  placeholder="Jordan Lee"
-                  placeholderTextColor="#64748b"
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  returnKeyType="next"
-                  value={name}
-                  onChangeText={(t) => {
-                    setName(t);
-                    if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: '' }));
-                  }}
-                  onFocus={() => setFocused((p) => ({ ...p, name: true }))}
-                  onBlur={() => setFocused((p) => ({ ...p, name: false }))}
-                  onSubmitEditing={() => emailInputRef.current?.focus()}
-                />
-              </StyledView>
-              {fieldErrors.name ? (
-                <StyledText className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.name}</StyledText>
-              ) : null}
-            </StyledView>
+            <View style={styles.headerContainer}>
+              <View style={styles.logoBox}>
+                <View style={styles.logoInner} />
+              </View>
+              <Text style={styles.headerTitle}>Create an account</Text>
+              <Text style={styles.headerSubtitle}>Set up your enterprise profile to access the workspace.</Text>
+            </View>
 
-            {/* Email */}
-            <StyledView className="mt-3 mb-1">
-              <StyledText className="text-slate-400 text-xs mb-1.5 ml-1">Email address</StyledText>
-              <StyledView
-                className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.email ? 'border-red-500/60' : focused.email ? 'border-blue-400/60' : 'border-white/10'
-                  }`}
-              >
-                <EnvelopeIcon size={18} color="#64748b" />
-                <StyledTextInput
-                  ref={emailInputRef}
-                  className="flex-1 ml-3 text-white text-sm"
-                  placeholder="you@company.com"
-                  placeholderTextColor="#64748b"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  keyboardType="email-address"
-                  returnKeyType="next"
-                  value={email}
-                  onChangeText={(t) => {
-                    setEmail(t);
-                    if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' }));
-                  }}
-                  onFocus={() => setFocused((p) => ({ ...p, email: true }))}
-                  onBlur={() => setFocused((p) => ({ ...p, email: false }))}
-                  onSubmitEditing={() => passwordInputRef.current?.focus()}
-                />
-              </StyledView>
-              {fieldErrors.email ? (
-                <StyledText className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.email}</StyledText>
-              ) : null}
-            </StyledView>
+            <View style={styles.formContainer}>
 
-            {/* Password */}
-            <StyledView className="mt-3 mb-1">
-              <StyledText className="text-slate-400 text-xs mb-1.5 ml-1">Password</StyledText>
-              <StyledView
-                className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.password ? 'border-red-500/60' : focused.password ? 'border-blue-400/60' : 'border-white/10'
-                  }`}
-              >
-                <KeyIcon size={18} color="#64748b" />
-                <StyledTextInput
-                  ref={passwordInputRef}
-                  className="flex-1 ml-3 text-white text-sm"
-                  placeholder="At least 8 characters"
-                  placeholderTextColor="#64748b"
-                  autoCapitalize="none"
-                  autoComplete="password-new"
-                  secureTextEntry={!showPassword}
-                  returnKeyType="done"
-                  value={password}
-                  onChangeText={(t) => {
-                    setPassword(t);
-                    if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' }));
-                  }}
-                  onFocus={() => setFocused((p) => ({ ...p, password: true }))}
-                  onBlur={() => setFocused((p) => ({ ...p, password: false }))}
-                  onSubmitEditing={handleRegister}
-                />
-                <StyledTouchableOpacity
-                  onPress={() => setShowPassword((v) => !v)}
-                  accessibilityRole="button"
-                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              {/* Name */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full name</Text>
+                <View style={[styles.inputWrapper, focused.name && styles.inputWrapperFocused, fieldErrors.name && styles.inputWrapperError]}>
+                  <UserIcon color={focused.name ? '#2F67F6' : '#9CA3AF'} size={20} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Jordan Lee"
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    returnKeyType="next"
+                    value={name}
+                    onChangeText={(t) => {
+                      setName(t);
+                      if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: '' }));
+                    }}
+                    onFocus={() => setFocused((p) => ({ ...p, name: true }))}
+                    onBlur={() => setFocused((p) => ({ ...p, name: false }))}
+                    onSubmitEditing={() => emailInputRef.current?.focus()}
+                  />
+                </View>
+                {fieldErrors.name ? <Text style={styles.errorText}>{fieldErrors.name}</Text> : null}
+              </View>
+
+              {/* Email */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Corporate email</Text>
+                <View style={[styles.inputWrapper, focused.email && styles.inputWrapperFocused, fieldErrors.email && styles.inputWrapperError]}>
+                  <EnvelopeIcon color={focused.email ? '#2F67F6' : '#9CA3AF'} size={20} />
+                  <TextInput
+                    ref={emailInputRef}
+                    style={styles.input}
+                    placeholder="name@company.com"
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="none"
+                    textContentType="emailAddress"
+                    keyboardType="email-address"
+                    returnKeyType="next"
+                    value={email}
+                    onChangeText={(t) => {
+                      setEmail(t);
+                      if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' }));
+                    }}
+                    onFocus={() => setFocused((p) => ({ ...p, email: true }))}
+                    onBlur={() => setFocused((p) => ({ ...p, email: false }))}
+                  />
+                </View>
+                {fieldErrors.email ? <Text style={styles.errorText}>{fieldErrors.email}</Text> : null}
+              </View>
+
+              {/* Department Dropdown */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Department</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDeptModal(true)}
+                  style={[
+                    styles.inputWrapper,
+                    showDeptModal && styles.inputWrapperFocused,
+                    fieldErrors.department && styles.inputWrapperError
+                  ]}
+                  activeOpacity={0.8}
                 >
-                  {showPassword ? (
-                    <EyeSlashIcon size={18} color="#64748b" />
-                  ) : (
-                    <EyeIcon size={18} color="#64748b" />
-                  )}
-                </StyledTouchableOpacity>
-              </StyledView>
-              {fieldErrors.password ? (
-                <StyledText className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.password}</StyledText>
-              ) : password ? (
-                <>
-                  <StyledView className="flex-row mt-2" style={{ gap: 4 }}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <StyledView
-                        key={i}
-                        style={{
-                          flex: 1,
-                          height: 3,
-                          borderRadius: 2,
-                          backgroundColor: i < strength.score ? strengthColors[strength.score] : 'rgba(255,255,255,0.1)',
-                        }}
+                  <BriefcaseIcon color={selectedDepartment ? '#2F67F6' : '#9CA3AF'} size={20} />
+                  <Text style={[styles.dropdownText, !selectedDepartment && { color: '#9CA3AF' }]}>
+                    {selectedDepartment
+                      ? departments.find(d => d._id === selectedDepartment)?.name || 'Select Department'
+                      : 'Select Department'}
+                  </Text>
+                  <ChevronDownIcon size={16} color="#9CA3AF" />
+                </TouchableOpacity>
+                {fieldErrors.department ? <Text style={styles.errorText}>{fieldErrors.department}</Text> : null}
+
+                <Modal
+                  visible={showDeptModal}
+                  transparent={true}
+                  animationType="fade"
+                  onRequestClose={() => setShowDeptModal(false)}
+                >
+                  <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setShowDeptModal(false)}
+                  >
+                    <View style={styles.modalContent}>
+                      <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Select Department</Text>
+                      </View>
+                      <FlatList
+                        data={departments}
+                        keyExtractor={(item) => item._id}
+                        renderItem={({ item }) => (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setSelectedDepartment(item._id);
+                              setShowDeptModal(false);
+                              if (fieldErrors.department) setFieldErrors(p => ({ ...p, department: '' }));
+                            }}
+                            style={[
+                              styles.modalOption,
+                              selectedDepartment === item._id && styles.modalOptionSelected
+                            ]}
+                          >
+                            <Text style={[
+                              styles.modalOptionText,
+                              selectedDepartment === item._id && styles.modalOptionTextSelected
+                            ]}>
+                              {item.name}
+                            </Text>
+                            {selectedDepartment === item._id && (
+                              <CheckIcon size={16} color="#2F67F6" />
+                            )}
+                          </TouchableOpacity>
+                        )}
+                        ListEmptyComponent={
+                          <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>No departments available</Text>
+                          </View>
+                        }
                       />
-                    ))}
-                  </StyledView>
-                  <StyledText className="text-xs mt-1 ml-1" style={{ color: strengthColors[strength.score] }}>
-                    {strength.label}
-                  </StyledText>
-                </>
-              ) : null}
-            </StyledView>
+                    </View>
+                  </TouchableOpacity>
+                </Modal>
+              </View>
 
-            {/* Terms */}
-            <StyledView className="mt-4 mb-1">
-              <StyledTouchableOpacity
-                className="flex-row items-start"
-                onPress={() => {
-                  setAgreedToTerms((v) => !v);
-                  if (fieldErrors.terms) setFieldErrors((p) => ({ ...p, terms: '' }));
-                }}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: agreedToTerms }}
-                style={{ gap: 8 }}
-              >
-                <StyledView
-                  className={`w-4 h-4 rounded items-center justify-center mt-0.5 ${agreedToTerms ? 'bg-blue-500' : 'border border-white/30'
-                    }`}
+              {/* Password */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={[styles.inputWrapper, focused.password && styles.inputWrapperFocused, fieldErrors.password && styles.inputWrapperError]}>
+                  <KeyIcon color={focused.password ? '#2F67F6' : '#9CA3AF'} size={20} />
+                  <TextInput
+                    ref={passwordInputRef}
+                    style={styles.input}
+                    placeholder="At least 8 characters"
+                    placeholderTextColor="#9CA3AF"
+                    autoCapitalize="none"
+                    textContentType="password"
+                    secureTextEntry={!showPassword}
+                    returnKeyType="done"
+                    value={password}
+                    onChangeText={(t) => {
+                      setPassword(t);
+                      if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' }));
+                    }}
+                    onFocus={() => setFocused((p) => ({ ...p, password: true }))}
+                    onBlur={() => setFocused((p) => ({ ...p, password: false }))}
+                    onSubmitEditing={handleRegister}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword((v) => !v)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    {showPassword ? (
+                      <EyeSlashIcon size={20} color="#9CA3AF" />
+                    ) : (
+                      <EyeIcon size={20} color="#9CA3AF" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {fieldErrors.password ? (
+                  <Text style={styles.errorText}>{fieldErrors.password}</Text>
+                ) : password ? (
+                  <View style={styles.strengthContainer}>
+                    <View style={styles.strengthBars}>
+                      {[0, 1, 2, 3].map((i) => (
+                        <View
+                          key={i}
+                          style={[
+                            styles.strengthBar,
+                            { backgroundColor: i < strength.score ? strengthColors[strength.score] : '#f1f5f9' }
+                          ]}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.strengthLabel, { color: strengthColors[strength.score] }]}>
+                      {strength.label}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Terms */}
+              <View style={styles.termsContainer}>
+                <TouchableOpacity
+                  style={styles.checkboxContainer}
+                  onPress={() => {
+                    setAgreedToTerms((v) => !v);
+                    if (fieldErrors.terms) setFieldErrors((p) => ({ ...p, terms: '' }));
+                  }}
+                  activeOpacity={0.8}
                 >
-                  {agreedToTerms ? <CheckIcon size={11} color="#fff" /> : null}
-                </StyledView>
-                <StyledText className="text-slate-400 text-xs flex-1" style={{ lineHeight: 18 }}>
-                  I agree to the <StyledText className="text-blue-400">terms of service</StyledText> and{' '}
-                  <StyledText className="text-blue-400">privacy policy</StyledText>
-                </StyledText>
-              </StyledTouchableOpacity>
-              {fieldErrors.terms ? (
-                <StyledText className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.terms}</StyledText>
-              ) : null}
-            </StyledView>
+                  <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked, fieldErrors.terms && styles.checkboxError]}>
+                    {agreedToTerms ? <CheckIcon size={12} color="#fff" /> : null}
+                  </View>
+                  <Text style={styles.termsText}>
+                    I agree to the <Text style={styles.linkText}>terms of service</Text> and{' '}
+                    <Text style={styles.linkText}>privacy policy</Text>
+                  </Text>
+                </TouchableOpacity>
+                {fieldErrors.terms ? <Text style={styles.errorText}>{fieldErrors.terms}</Text> : null}
+              </View>
 
-            {formError ? (
-              <StyledText className="text-red-400 text-sm text-center mt-3">{formError}</StyledText>
-            ) : null}
+              {formError ? <Text style={styles.errorTextCenter}>{formError}</Text> : null}
 
-            <StyledView className="mt-5">
-              <StyledTouchableOpacity
-                className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600"
+              <TouchableOpacity
                 onPress={handleRegister}
                 disabled={loading}
-                accessibilityRole="button"
+                activeOpacity={0.8}
+                style={styles.primaryButton}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <StyledText className="text-white font-medium text-base">Sign up</StyledText>
+                  <Text style={styles.primaryButtonText}>Sign Up</Text>
                 )}
-              </StyledTouchableOpacity>
-            </StyledView>
+              </TouchableOpacity>
 
-            <StyledView className="flex-row justify-center items-center mt-7">
-              <StyledText className="text-slate-400 text-sm">Already have an account? </StyledText>
-              <StyledTouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <StyledText className="text-blue-400 font-medium text-sm">Log in</StyledText>
-              </StyledTouchableOpacity>
-            </StyledView>
-          </StyledView>
+              <View style={styles.footerContainer}>
+                <Text style={styles.footerText}>Already have an account? </Text>
+                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                  <Text style={styles.footerLink}>Sign in</Text>
+                </TouchableOpacity>
+              </View>
+
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
-    </StyledView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    paddingTop: 60,
+    paddingBottom: 40,
+  },
+  headerContainer: {
+    marginBottom: 40,
+  },
+  logoBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  logoInner: {
+    width: 20,
+    height: 20,
+    backgroundColor: '#2563eb',
+    borderRadius: 6,
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 15,
+    color: '#64748b',
+    lineHeight: 22,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  primaryButton: {
+    flexDirection: 'row',
+    height: 52,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    height: 52,
+  },
+  inputWrapperFocused: {
+    borderColor: '#2563eb',
+    backgroundColor: '#ffffff',
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  inputWrapperError: {
+    borderColor: '#ef4444',
+  },
+  input: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#0f172a',
+  },
+  dropdownText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#0f172a',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 13,
+    marginTop: 6,
+  },
+  errorTextCenter: {
+    color: '#ef4444',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  strengthContainer: {
+    marginTop: 8,
+  },
+  strengthBars: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  strengthLabel: {
+    fontSize: 13,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  termsContainer: {
+    marginBottom: 24,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 2,
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#2F67F6',
+    borderColor: '#2F67F6',
+  },
+  checkboxError: {
+    borderColor: '#ef4444',
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#475569',
+    lineHeight: 22,
+  },
+  linkText: {
+    color: '#2F67F6',
+    fontWeight: '600',
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 32,
+  },
+  footerText: {
+    color: '#64748b',
+    fontSize: 14,
+  },
+  footerLink: {
+    color: '#2563eb',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    width: '100%',
+    maxHeight: '60%',
+    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalHeader: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8fafc',
+  },
+  modalOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  modalOptionText: {
+    fontSize: 16,
+    color: '#334155',
+    fontWeight: '500',
+  },
+  modalOptionTextSelected: {
+    color: '#2F67F6',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#94a3b8',
+    fontSize: 15,
+  },
+});
 
 export default RegisterScreen;

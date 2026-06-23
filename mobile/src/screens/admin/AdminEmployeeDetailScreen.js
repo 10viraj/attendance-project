@@ -1,21 +1,32 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, FlatList, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeftIcon, UserCircleIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, BriefcaseIcon, CalendarDaysIcon, CurrencyDollarIcon, CheckBadgeIcon, ClockIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { ChevronLeftIcon, UserCircleIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, BriefcaseIcon, CalendarDaysIcon, CurrencyDollarIcon, CheckBadgeIcon, ClockIcon, TrashIcon, PencilIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../config/api';
 
 const AdminEmployeeDetailScreen = ({ route, navigation }) => {
   const { employee } = route.params;
+  const [employeeData, setEmployeeData] = useState(employee);
   const [isDeleting, setIsDeleting] = useState(false);
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+
+  // Editing States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFirstName, setEditFirstName] = useState(employee.firstName || '');
+  const [editLastName, setEditLastName] = useState(employee.lastName || '');
+  const [editPhone, setEditPhone] = useState(employee.phone || '');
+  const [editDesignation, setEditDesignation] = useState(employee.designation || employee.position || '');
+  const [editDept, setEditDept] = useState(employee.department?._id || '');
+  const [departments, setDepartments] = useState([]);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
-        const res = await api.get(`/attendance/admin/employee/${employee._id}`, {
+        const res = await api.get(`/attendance/admin/employee/${employeeData._id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setHistory(res.data.data || []);
@@ -26,12 +37,64 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
       }
     };
     fetchHistory();
-  }, [employee._id]);
+  }, [employeeData._id]);
+
+  useEffect(() => {
+    const fetchDepts = async () => {
+      try {
+        const res = await api.get('/departments');
+        if (res.data && res.data.success) {
+          setDepartments(res.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+    fetchDepts();
+  }, []);
+
+  const handleUpdate = async () => {
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      Alert.alert('Validation Error', 'First and Last names are required');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await api.put(`/employees/${employeeData._id}`, {
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim(),
+        phone: editPhone.trim(),
+        designation: editDesignation.trim(),
+        department: editDept || undefined
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        Alert.alert('Success', 'Employee details updated successfully');
+        setShowEditModal(false);
+        const selectedDeptObj = departments.find(d => d._id === editDept);
+        setEmployeeData(prev => ({
+          ...prev,
+          firstName: editFirstName.trim(),
+          lastName: editLastName.trim(),
+          phone: editPhone.trim(),
+          designation: editDesignation.trim(),
+          position: editDesignation.trim(),
+          department: selectedDeptObj ? { _id: editDept, name: selectedDeptObj.name } : prev.department
+        }));
+      }
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to update employee details');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleDelete = () => {
     Alert.alert(
       'Delete Employee',
-      `Are you sure you want to completely remove ${employee.firstName} ${employee.lastName}? This action cannot be undone.`,
+      `Are you sure you want to completely remove ${employeeData.firstName} ${employeeData.lastName}? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -41,7 +104,7 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
             setIsDeleting(true);
             try {
               const token = await AsyncStorage.getItem('userToken');
-              const res = await api.delete(`/employees/${employee._id}`, {
+              const res = await api.delete(`/employees/${employeeData._id}`, {
                 headers: { Authorization: `Bearer ${token}` }
               });
               if (res.data.success) {
@@ -93,18 +156,28 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Employee Profile</Text>
           
-          <TouchableOpacity 
-            style={styles.deleteButton} 
-            onPress={handleDelete}
-            activeOpacity={0.7}
-            disabled={isDeleting}
-          >
-            {isDeleting ? (
-              <ActivityIndicator size="small" color="#e11d48" />
-            ) : (
-              <TrashIcon color="#e11d48" size={24} />
-            )}
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <TouchableOpacity 
+              style={styles.editButton} 
+              onPress={() => setShowEditModal(true)}
+              activeOpacity={0.7}
+            >
+              <PencilIcon color="#2563eb" size={22} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.deleteButton} 
+              onPress={handleDelete}
+              activeOpacity={0.7}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#e11d48" />
+              ) : (
+                <TrashIcon color="#e11d48" size={22} />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -112,22 +185,22 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
           {/* Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
-              {employee.profileImage ? (
+              {employeeData.profileImage ? (
                 <UserCircleIcon color="#94a3b8" size={80} />
               ) : (
                 <View style={styles.initialsAvatar}>
                   <Text style={styles.initialsText}>
-                    {employee.firstName?.[0]}{employee.lastName?.[0]}
+                    {employeeData.firstName?.[0]}{employeeData.lastName?.[0]}
                   </Text>
                 </View>
               )}
             </View>
-            <Text style={styles.employeeName}>{employee.firstName} {employee.lastName}</Text>
-            <Text style={styles.employeeId}>Employee ID: {employee.employeeId}</Text>
+            <Text style={styles.employeeName}>{employeeData.firstName} {employeeData.lastName}</Text>
+            <Text style={styles.employeeId}>Employee ID: {employeeData.employeeId}</Text>
             
-            <View style={[styles.statusBadge, { backgroundColor: employee.isActive ? '#ecfdf5' : '#fef2f2' }]}>
-              <Text style={[styles.statusText, { color: employee.isActive ? '#10b981' : '#ef4444' }]}>
-                {employee.isActive ? 'Active' : 'Inactive'}
+            <View style={[styles.statusBadge, { backgroundColor: employeeData.isActive ? '#ecfdf5' : '#fef2f2' }]}>
+              <Text style={[styles.statusText, { color: employeeData.isActive ? '#10b981' : '#ef4444' }]}>
+                {employeeData.isActive ? 'Active' : 'Inactive'}
               </Text>
             </View>
           </View>
@@ -138,17 +211,17 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
             <DetailRow 
               icon={EnvelopeIcon} 
               label="Email Address" 
-              value={employee.user?.email} 
+              value={employeeData.user?.email} 
             />
             <DetailRow 
               icon={PhoneIcon} 
               label="Phone Number" 
-              value={employee.phone} 
+              value={employeeData.phone} 
             />
             <DetailRow 
               icon={MapPinIcon} 
               label="Address" 
-              value={employee.address ? `${employee.address.street || ''}, ${employee.address.city || ''}` : null} 
+              value={employeeData.address ? `${employeeData.address.street || ''}, ${employeeData.address.city || ''}` : null} 
             />
           </View>
 
@@ -158,27 +231,27 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
             <DetailRow 
               icon={BriefcaseIcon} 
               label="Department" 
-              value={employee.department?.name} 
+              value={employeeData.department?.name} 
             />
             <DetailRow 
               icon={CheckBadgeIcon} 
               label="Position" 
-              value={employee.position} 
+              value={employeeData.designation || employeeData.position} 
             />
             <DetailRow 
               icon={ClockIcon} 
               label="Assigned Shift" 
-              value={employee.shift ? `${employee.shift.name} (${employee.shift.startTime} - ${employee.shift.endTime})` : null} 
+              value={employeeData.shift ? `${employeeData.shift.name} (${employeeData.shift.startTime} - ${employeeData.shift.endTime})` : null} 
             />
             <DetailRow 
               icon={CalendarDaysIcon} 
               label="Date of Joining" 
-              value={formatDate(employee.dateOfJoining)} 
+              value={formatDate(employeeData.dateOfJoining)} 
             />
             <DetailRow 
               icon={CurrencyDollarIcon} 
               label="Salary" 
-              value={employee.salary ? `$${employee.salary.toLocaleString()}` : null} 
+              value={employeeData.salary ? `$${employeeData.salary.toLocaleString()}` : null} 
             />
           </View>
 
@@ -213,6 +286,116 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
 
         </ScrollView>
       </SafeAreaView>
+
+      {/* Edit Employee Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Employee Details</Text>
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Text style={styles.closeText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: '90%' }}>
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>First Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editFirstName}
+                  onChangeText={setEditFirstName}
+                  placeholder="First Name"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Last Name</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editLastName}
+                  onChangeText={setEditLastName}
+                  placeholder="Last Name"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editPhone}
+                  onChangeText={setEditPhone}
+                  placeholder="Phone Number"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Position / Designation</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={editDesignation}
+                  onChangeText={setEditDesignation}
+                  placeholder="e.g. Developer, Designer"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.inputLabel}>Department</Text>
+                <View style={styles.pickerContainer}>
+                  <FlatList
+                    data={departments}
+                    keyExtractor={(item) => item._id}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingVertical: 4 }}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.deptSelectorBtn,
+                          editDept === item._id && styles.deptSelectorBtnActive
+                        ]}
+                        onPress={() => setEditDept(item._id)}
+                      >
+                        <Text style={[
+                          styles.deptSelectorText,
+                          editDept === item._id && styles.deptSelectorTextActive
+                        ]}>
+                          {item.name}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleUpdate}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -392,6 +575,107 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#3b82f6',
+  },
+  editButton: {
+    padding: 4,
+    marginRight: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: '90%',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  closeText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  textInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 46,
+    fontSize: 15,
+    color: '#0f172a',
+  },
+  pickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deptSelectorBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  deptSelectorBtnActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
+  },
+  deptSelectorText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  deptSelectorTextActive: {
+    color: '#2563eb',
+  },
+  saveButton: {
+    backgroundColor: '#2563eb',
+    height: 50,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  saveButtonText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

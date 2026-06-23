@@ -5,6 +5,8 @@ import { DocumentIcon, ArrowUpTrayIcon, DocumentTextIcon } from 'react-native-he
 import * as DocumentPicker from 'expo-document-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'react-native';
 import api from '../config/api';
 
 const DocumentVaultScreen = () => {
@@ -108,11 +110,20 @@ const DocumentVaultScreen = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Document Vault</Text>
-        <Text style={styles.headerSubtitle}>Securely store your payslips and ID proofs</Text>
-      </View>
+    <View style={styles.container}>
+      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
+      <LinearGradient
+        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerBackground}
+      />
+      
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Document Vault</Text>
+          <Text style={styles.headerSubtitle}>Securely store your payslips and ID proofs</Text>
+        </View>
 
       <View style={styles.content}>
         {loading ? (
@@ -148,7 +159,8 @@ const DocumentVaultScreen = () => {
           </>
         )}
       </TouchableOpacity>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -157,20 +169,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  safeArea: {
+    flex: 1,
+  },
   header: {
-    padding: 24,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderBottomColor: 'transparent',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#0f172a',
+    color: '#ffffff',
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: '#e0f2fe',
     marginTop: 4,
   },
   content: {

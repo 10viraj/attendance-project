@@ -24,4 +24,38 @@ const createHoliday = async (req, res, next) => {
   }
 };
 
-module.exports = { getHolidays, createHoliday };
+// @desc    Update a holiday
+// @route   PUT /api/holidays/:id
+// @access  Private/Admin
+const updateHoliday = async (req, res, next) => {
+  try {
+    const holiday = await Holiday.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!holiday) {
+      return res.status(404).json({ success: false, message: 'Holiday not found' });
+    }
+    res.json({ success: true, data: holiday });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a holiday
+// @route   DELETE /api/holidays/:id
+// @access  Private/Admin
+const deleteHoliday = async (req, res, next) => {
+  try {
+    const holiday = await Holiday.findById(req.params.id);
+    if (!holiday) {
+      return res.status(404).json({ success: false, message: 'Holiday not found' });
+    }
+    await holiday.deleteOne();
+    res.json({ success: true, data: {} });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getHolidays, createHoliday, updateHoliday, deleteHoliday };
