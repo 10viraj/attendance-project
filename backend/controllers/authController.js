@@ -114,4 +114,46 @@ const updatePushToken = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, loginUser, updatePushToken };
+// @desc    Update password
+// @route   PUT /api/auth/password
+// @access  Private
+const updatePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      res.status(400);
+      throw new Error('Please provide both current and new passwords');
+    }
+
+    // Select +password because it's disabled by default in the model
+    const user = await User.findById(req.user._id).select('+password');
+    
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+    
+    // Verify current password
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      res.status(401);
+      throw new Error('Incorrect current password');
+    }
+    
+    // Update password
+    user.password = newPassword;
+    await user.save();
+    
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  registerUser,
+  loginUser,
+  updatePushToken,
+  updatePassword
+};

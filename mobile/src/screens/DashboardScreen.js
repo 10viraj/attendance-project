@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Platform } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ClockIcon, CalendarDaysIcon, CheckCircleIcon, FingerPrintIcon, StarIcon } from 'react-native-heroicons/outline';
+import { ClockIcon, CalendarDaysIcon, ViewfinderCircleIcon, PaperAirplaneIcon, ArrowTrendingUpIcon } from 'react-native-heroicons/outline';
+import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import NetInfo from '@react-native-community/netinfo';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import api from '../config/api';
@@ -29,12 +30,43 @@ const DashboardScreen = ({ navigation }) => {
   const [employee, setEmployee] = useState(null);
   const [status, setStatus] = useState('Loading...');
   const [loading, setLoading] = useState(true);
-  const [attendancePercent, setAttendancePercent] = useState('0');
-  const [weeklyHours, setWeeklyHours] = useState('0h 0m');
-  const [shiftName, setShiftName] = useState('Loading...');
-  const [shiftTime, setShiftTime] = useState('--:--');
+  const [processing, setProcessing] = useState(false);
+  
+  const [presentDays, setPresentDays] = useState('0');
+  const [absentDays, setAbsentDays] = useState('0');
+  const [weeklyHours, setWeeklyHours] = useState('0h');
+  
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
+  const [punchInTime, setPunchInTime] = useState('—');
+  const [punchOutTime, setPunchOutTime] = useState('—');
 
-  const [announcements, setAnnouncements] = useState([]);
+  const [biometricType, setBiometricType] = useState('Face'); // default
+
+  // Check supported biometric type for UI
+  useEffect(() => {
+    const checkType = async () => {
+      try {
+        const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          setBiometricType('Face');
+        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+          setBiometricType('Fingerprint');
+        } else {
+          setBiometricType('Manual');
+        }
+      } catch (e) {
+        console.log(e);
+      }
+    };
+    checkType();
+  }, []);
+
+  // Live Clock
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -61,18 +93,18 @@ const DashboardScreen = ({ navigation }) => {
         const statusRes = await api.get('/attendance/today', {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setStatus(statusRes.data.status || 'Not Checked In');
-
-        // Fetch Announcements
-        try {
-          const annRes = await api.get('/announcements', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (annRes.data.success) {
-            setAnnouncements(annRes.data.data);
+        
+        const currentStatus = statusRes.data.status === 'Not Checked In' ? 'Not Started' : (statusRes.data.status || 'Not Started');
+        setStatus(currentStatus);
+        
+        if (statusRes.data.data) {
+          const attendanceData = statusRes.data.data;
+          if (attendanceData.checkIn && attendanceData.checkIn.time) {
+            setPunchInTime(new Date(attendanceData.checkIn.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
           }
-        } catch (annErr) {
-          console.error('Error loading announcements:', annErr);
+          if (attendanceData.checkOut && attendanceData.checkOut.time) {
+            setPunchOutTime(new Date(attendanceData.checkOut.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+          }
         }
 
         // Fetch Employee Stats
@@ -81,10 +113,15 @@ const DashboardScreen = ({ navigation }) => {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (statsRes.data.success) {
-            setAttendancePercent(statsRes.data.data.attendancePercentage.toString());
-            setWeeklyHours(statsRes.data.data.weeklyHoursFormatted);
-            setShiftName(statsRes.data.data.shiftName);
-            setShiftTime(statsRes.data.data.shiftTime);
+            setPresentDays((statsRes.data.data.presentDays || 0).toString());
+            setAbsentDays((statsRes.data.data.absentDays || 0).toString());
+            
+            // Format "Xh Ym" to just "X.Yh" for the compact UI
+            const hoursMatch = statsRes.data.data.weeklyHoursFormatted.match(/(\d+)h/);
+            const minsMatch = statsRes.data.data.weeklyHoursFormatted.match(/(\d+)m/);
+            const h = hoursMatch ? parseInt(hoursMatch[1]) : 0;
+            const m = minsMatch ? parseInt(minsMatch[1]) : 0;
+            setWeeklyHours(`${(h + m/60).toFixed(1)}h`);
           }
         } catch (statsErr) {
           console.error('Error loading stats:', statsErr);
@@ -94,7 +131,7 @@ const DashboardScreen = ({ navigation }) => {
       if (!error.response || error.response.status !== 401) {
         console.error('Error loading dashboard data:', error);
       }
-      setStatus('Error loading status');
+      setStatus('Not Started');
     } finally {
       setLoading(false);
     }
@@ -106,147 +143,237 @@ const DashboardScreen = ({ navigation }) => {
     }, [])
   );
 
-  // Determine time of day for greeting
-  const hour = new Date().getHours();
-  let greeting = 'Good Evening';
+  const authenticateAndAction = async (actionType) => {
+    if (status === 'Checked Out') {
+      Alert.alert('Shift Completed', 'You have already checked out for today.');
+      return;
+    }
 
-  if (hour >= 5 && hour < 12) {
-    greeting = 'Good Morning';
-  } else if (hour >= 12 && hour < 17) {
-    greeting = 'Good Afternoon';
-  } else if (hour >= 17 && hour < 20) {
-    greeting = 'Good Evening';
-  } else {
-    greeting = 'Good Night';
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (!hasHardware) {
+        console.log('No biometric hardware detected. Bypassing biometric for dashboard.');
+        handleAction(actionType);
+        return;
+      }
+
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!isEnrolled) {
+        console.log('No biometrics enrolled. Bypassing biometric for dashboard.');
+        handleAction(actionType);
+        return;
+      }
+
+      const authResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: `Authenticate with ${biometricType}`,
+        fallbackLabel: 'Use Passcode',
+      });
+
+      if (authResult.success) {
+        handleAction(actionType);
+      } else {
+        Alert.alert('Authentication Failed', 'Unable to verify your identity.');
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'An error occurred during authentication.');
+    }
+  };
+
+  const handleAction = async (action) => {
+    setProcessing(true);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const employeeId = employee?.employeeId;
+
+      const endpoint = `/attendance/${action}`;
+
+      const payload = {
+        employeeId,
+        location: { latitude: 28.6139, longitude: 77.2090 }, // Mock location
+        verificationMethod: biometricType === 'Manual' ? 'Manual' : biometricType
+      };
+
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        // Offline Mode
+        const queueStr = await AsyncStorage.getItem('punchQueue');
+        const queue = queueStr ? JSON.parse(queueStr) : [];
+        queue.push({ action, payload, timestamp: new Date().toISOString() });
+        await AsyncStorage.setItem('punchQueue', JSON.stringify(queue));
+
+        Alert.alert('Offline Mode', `You are offline. Your punch has been saved locally.`);
+        if (action === 'check-in') {
+          setStatus('Checked In');
+          setPunchInTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+        }
+        if (action === 'check-out') {
+          setStatus('Checked Out');
+          setPunchOutTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+        }
+        setProcessing(false);
+        return;
+      }
+
+      const res = await api.post(endpoint, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data.success) {
+        loadDashboardData();
+      }
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || `Failed to punch`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const formattedDate = currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const shortDate = currentTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  // Get user initial for avatar
+  const userName = employee ? employee.firstName : 'User';
+  const userInitial = userName ? userName.charAt(0).toUpperCase() : 'U';
+
+  // Determine what button to show
+  let buttonAction = 'check-in';
+  let buttonText = `Punch In with ${biometricType}`;
+  if (status === 'Checked In' || status === 'On Break') {
+     buttonAction = 'check-out';
+     buttonText = `Punch Out with ${biometricType}`;
+  } else if (status === 'Checked Out') {
+     buttonText = 'Shift Completed';
   }
+
+  // Format the status for the pill
+  const getDisplayStatus = (s) => {
+    if (s === 'Checked In') return 'Shift Started';
+    if (s === 'Checked Out') return 'Shift Completed';
+    return s;
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-      {/* Background Decorator */}
-      <LinearGradient
-        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerBackground}
-      />
-
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" translucent={false} />
       <SafeAreaView style={styles.safeArea}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-          {/* Header */}
+          
+          {/* Header Section */}
           <View style={styles.headerRow}>
             <View>
-              {/* <Text style={styles.greetingSub}>{timeTheme.greeting},</Text> */}
-              <Text style={styles.greetingMain}>
-                {employee ? `${employee.firstName} ${employee.lastName}` : 'User'}
-              </Text>
+              <Text style={styles.greetingSub}>Good morning,</Text>
+              <Text style={styles.greetingMain}>{userName}</Text>
+              <Text style={styles.greetingDate}>{formattedDate}</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.avatarCircle}
+              onPress={() => navigation.navigate('Profile')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.avatarText}>{userInitial}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Main Punch Card */}
+          <View style={styles.punchCard}>
+            <View style={styles.punchCardHeader}>
+              <View style={styles.statusPill}>
+                <View style={[styles.statusDot, { backgroundColor: status === 'Checked In' ? '#10B981' : '#9CA3AF' }]} />
+                <Text style={styles.statusPillText}>{loading ? '...' : getDisplayStatus(status)}</Text>
+              </View>
+              <Text style={styles.punchCardDate}>{shortDate}</Text>
+            </View>
+
+            <View style={styles.clockContainer}>
+              <Text style={styles.shiftLabel}>Today's Shift</Text>
+              <Text style={styles.liveClock}>{formattedTime}</Text>
+            </View>
+
+            <View style={styles.punchTimesBox}>
+              <View style={styles.punchTimeSection}>
+                <Text style={styles.punchTimeLabel}>Punch In</Text>
+                <Text style={styles.punchTimeValue}>{punchInTime}</Text>
+              </View>
+              <View style={styles.punchTimeDivider} />
+              <View style={styles.punchTimeSection}>
+                <Text style={styles.punchTimeLabel}>Punch Out</Text>
+                <Text style={styles.punchTimeValue}>{punchOutTime}</Text>
+              </View>
             </View>
           </View>
 
-          {/* Quick Check-In Card */}
-          <View style={[styles.primaryCard, { shadowColor: '#4f46e5' }]}>
-            <View style={styles.statusRow}>
-              <View>
-                <Text style={styles.statusLabel}>Current Status</Text>
-                <Text style={[styles.statusValue, { color: '#3b82f6' }]}>
-                  {loading ? <ActivityIndicator color="#3b82f6" size="small" /> : status}
-                </Text>
-                <Text style={styles.shiftInfo}>
-                  Shift: {shiftName} ({shiftTime})
-                </Text>
-              </View>
-              <View style={[styles.iconBoxLight, { backgroundColor: '#e0f2fe' }]}>
-                <ClockIcon color="#3b82f6" size={24} />
-              </View>
-            </View>
-
-            {status !== 'Checked In' && status !== 'Checked Out' && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Attendance')}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={['#4f46e5', '#3b82f6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.actionButtonGradient}
-                >
-                  <FingerPrintIcon color="#ffffff" size={20} />
-                  <Text style={styles.actionButtonTextGradient}>Punch to Check In</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+          {/* Punch Button */}
+          <TouchableOpacity 
+            style={[styles.punchButton, status === 'Checked Out' && styles.punchButtonDisabled]}
+            onPress={() => authenticateAndAction(buttonAction)}
+            disabled={processing || status === 'Checked Out'}
+            activeOpacity={0.8}
+          >
+            {processing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <ViewfinderCircleIcon size={24} color="#ffffff" style={{ marginRight: 10 }} />
+                <Text style={styles.punchButtonText}>{buttonText}</Text>
+              </>
             )}
-          </View>
+          </TouchableOpacity>
 
-          {/* Stats Row */}
+          {/* This Week Stats */}
+          <Text style={styles.sectionTitle}>This Week</Text>
           <View style={styles.statsRow}>
-            <View style={[styles.statCard, { marginRight: 8 }]}>
-              <View style={[styles.iconBoxSoft, { backgroundColor: '#d1fae5' }]}>
-                <CheckCircleIcon color="#10b981" size={22} />
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrap}>
+                <ClockIcon size={24} color="#111827" />
               </View>
-              <Text style={styles.statLabel}>ATTENDANCE</Text>
-              <Text style={styles.statValue}>{attendancePercent}%</Text>
+              <Text style={styles.statValue}>{weeklyHours}</Text>
+              <Text style={styles.statLabel}>Hours</Text>
             </View>
 
-            <View style={[styles.statCard, { marginLeft: 8 }]}>
-              <View style={[styles.iconBoxSoft, { backgroundColor: '#dbeafe' }]}>
-                <ClockIcon color="#3b82f6" size={22} />
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrap}>
+                <CalendarDaysIcon size={24} color="#111827" />
               </View>
-              <Text style={styles.statLabel}>HOURS THIS WEEK</Text>
-              <Text style={styles.statValue}>{weeklyHours}</Text>
+              <Text style={styles.statValue}>{presentDays}</Text>
+              <Text style={styles.statLabel}>Present</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <View style={styles.statIconWrap}>
+                <ArrowTrendingUpIcon size={24} color="#111827" style={{ transform: [{ rotate: '180deg' }] }} />
+              </View>
+              <Text style={styles.statValue}>{absentDays}</Text>
+              <Text style={styles.statLabel}>Absent</Text>
             </View>
           </View>
-
-          {/* Announcements Card */}
-          {announcements && announcements.length > 0 && (
-            <View style={styles.announcementCard}>
-              <View style={styles.announcementHeader}>
-                <Text style={styles.sectionTitle}>Company Notice</Text>
-              </View>
-              {announcements.slice(0, 2).map((ann, idx) => (
-                <View key={idx} style={styles.announcementItem}>
-                  <Text style={styles.announcementTitle}>{ann.title}</Text>
-                  <Text style={styles.announcementMessage}>{ann.message}</Text>
-                </View>
-              ))}
-            </View>
-          )}
 
           {/* Quick Actions */}
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.quickActionsRow}>
-            <TouchableOpacity
-              style={styles.quickActionCard}
+            <TouchableOpacity 
+              style={styles.quickActionCard} 
+              activeOpacity={0.7}
               onPress={() => navigation.navigate('Leave')}
-              activeOpacity={0.7}
             >
-              <View style={[styles.iconBoxMedium, { backgroundColor: '#ffe4e6' }]}>
-                <CalendarDaysIcon color="#e11d48" size={24} />
+              <View style={styles.quickActionIconWrap}>
+                <PaperAirplaneIcon size={28} color="#9CA3AF" style={{ transform: [{ rotate: '-45deg' }] }} />
               </View>
-              <Text style={styles.quickActionText}>Apply Leave</Text>
+              <Text style={styles.quickActionTitle}>Apply Leave</Text>
+              <Text style={styles.quickActionSub}>Request time off</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickActionCard}
+            <TouchableOpacity 
+              style={styles.quickActionCard} 
+              activeOpacity={0.7}
               onPress={() => navigation.navigate('HolidayCalendar')}
-              activeOpacity={0.7}
             >
-              <View style={[styles.iconBoxMedium, { backgroundColor: '#ffedd5' }]}>
-                <StarIcon color="#ea580c" size={24} />
+              <View style={styles.quickActionIconWrap}>
+                <CalendarDaysIcon size={28} color="#9CA3AF" />
               </View>
-              <Text style={styles.quickActionText}>Holidays</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => navigation.navigate('Attendance')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconBoxMedium, { backgroundColor: '#f3e8ff' }]}>
-                <FingerPrintIcon color="#9333ea" size={24} />
-              </View>
-              <Text style={styles.quickActionText}>Punch</Text>
+              <Text style={styles.quickActionTitle}>Holidays</Text>
+              <Text style={styles.quickActionSub}>Upcoming schedule</Text>
             </TouchableOpacity>
           </View>
 
@@ -261,217 +388,218 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  headerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 220,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-  },
   safeArea: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 15,
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 20,
     paddingBottom: 40,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 32,
   },
   greetingSub: {
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 20,
-    color: '#bfdbfe', // primary-200
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    fontSize: 16,
+    color: '#64748B',
+    marginBottom: 4,
   },
   greetingMain: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginTop: 4,
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+    letterSpacing: -0.5,
   },
-  avatarContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
+  greetingDate: {
+    fontSize: 15,
+    color: '#64748B',
+  },
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#37474F',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#ffffff',
+    alignItems: 'center',
   },
   avatarText: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#2563eb',
+    color: '#FFFFFF',
   },
-  primaryCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
+  punchCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 32,
     padding: 24,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.02)',
+    marginBottom: 20,
   },
-  statusRow: {
+  punchCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 32,
   },
-  statusLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  statusValue: {
-    fontSize: 26,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  shiftInfo: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#94a3b8',
-    marginTop: 6,
-  },
-  iconBoxLight: {
-    padding: 14,
-    borderRadius: 16,
-  },
-  actionButtonGradient: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 20, // pill-like shape
+    backgroundColor: '#333333',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  actionButtonTextGradient: {
-    color: '#ffffff',
-    fontSize: 16,
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusPillText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  punchCardDate: {
+    color: '#9CA3AF',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  clockContainer: {
+    marginBottom: 40,
+  },
+  shiftLabel: {
+    color: '#9CA3AF',
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  liveClock: {
+    fontSize: 56,
     fontWeight: '800',
-    marginLeft: 8,
-    letterSpacing: 0.5,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  punchTimesBox: {
+    flexDirection: 'row',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    padding: 20,
+  },
+  punchTimeSection: {
+    flex: 1,
+  },
+  punchTimeLabel: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  punchTimeValue: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  punchTimeDivider: {
+    width: 1,
+    backgroundColor: '#4B5563',
+    marginHorizontal: 16,
+  },
+  punchButton: {
+    flexDirection: 'row',
+    backgroundColor: '#2E4040',
+    height: 64,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  punchButtonDisabled: {
+    opacity: 0.6,
+  },
+  punchButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 16,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: 40,
   },
   statCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 20,
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  iconBoxSoft: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    width: '31%',
+    borderRadius: 20,
+    padding: 16,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-    marginBottom: 4,
-    letterSpacing: 0.5,
+  statIconWrap: {
+    marginBottom: 16,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
-    color: '#1e293b',
+    color: '#0F172A',
+    marginBottom: 4,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 16,
+  statLabel: {
+    fontSize: 13,
+    color: '#64748B',
   },
   quickActionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   quickActionCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    width: '48%',
+    borderRadius: 20,
     padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-    marginHorizontal: 4, // Spacing between cards
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  iconBoxMedium: {
+  quickActionIconWrap: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
-    marginBottom: 8,
-  },
-  quickActionText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-    textAlign: 'center',
-  },
-  announcementCard: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  announcementHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
   },
-  announcementItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  announcementTitle: {
-    fontSize: 15,
+  quickActionTitle: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: '#0F172A',
     marginBottom: 4,
   },
-  announcementMessage: {
-    fontSize: 14,
-    color: '#64748b',
-    lineHeight: 20,
+  quickActionSub: {
+    fontSize: 13,
+    color: '#64748B',
   },
 });
 

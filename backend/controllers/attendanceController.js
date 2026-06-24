@@ -193,8 +193,8 @@ const getTodayStatus = async (req, res, next) => {
     }
 
     if (attendance.checkOut && attendance.checkOut.time) {
-      // If the most recent record is checked out, allow them to check in again
-      return res.json({ success: true, status: 'Not Checked In', data: attendance });
+      // They have already completed their shift for today
+      return res.json({ success: true, status: 'Checked Out', data: attendance });
     }
 
     // Check if on break
@@ -269,6 +269,8 @@ const getEmployeeStats = async (req, res, next) => {
       success: true,
       data: {
         attendancePercentage,
+        presentDays: presentDaysThisMonth,
+        absentDays: Math.max(0, weekdaysPassed - presentDaysThisMonth),
         weeklyHoursFormatted: `${hours}h ${minutes}m`,
         shiftName: employee.shift ? employee.shift.name : 'Standard Shift',
         shiftTime: employee.shift ? `${employee.shift.startTime} - ${employee.shift.endTime}` : '09:00 - 18:00'

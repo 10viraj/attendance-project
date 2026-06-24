@@ -1,11 +1,11 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar, Modal, FlatList, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UserPlusIcon, UserIcon, EnvelopeIcon, KeyIcon, EyeIcon, EyeSlashIcon, CheckIcon, BriefcaseIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
+import { CheckIcon, ChevronDownIcon, ChevronLeftIcon } from 'react-native-heroicons/outline';
 import api from '../config/api';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 8;
+const MIN_PASSWORD_LENGTH = 6; // Mockup says "At least 6 characters"
 
 const splitName = (fullName) => {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -30,11 +30,12 @@ const RegisterScreen = ({ navigation }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', password: '', terms: '', department: '' });
   const [formError, setFormError] = useState('');
+
   const [focused, setFocused] = useState({ name: false, email: false, password: false, department: false });
   const [departments, setDepartments] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
@@ -84,12 +85,9 @@ const RegisterScreen = ({ navigation }) => {
     } else if (password.length < MIN_PASSWORD_LENGTH) {
       errors.password = `Use at least ${MIN_PASSWORD_LENGTH} characters`;
     }
-    if (!agreedToTerms) {
-      errors.terms = 'You must agree to continue';
-    }
 
     setFieldErrors(errors);
-    return !errors.name && !errors.email && !errors.password && !errors.terms && !errors.department;
+    return !errors.name && !errors.email && !errors.password && !errors.department;
   };
 
   const handleRegister = async () => {
@@ -124,34 +122,39 @@ const RegisterScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#ffffff" barStyle="dark-content" translucent={false} />
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} />
 
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.keyboardView}
         >
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+
+            {/* Back Button */}
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <ChevronLeftIcon color="#0F172A" size={24} />
+            </TouchableOpacity>
 
             <View style={styles.headerContainer}>
-              <View style={styles.logoBox}>
-                <View style={styles.logoInner} />
-              </View>
-              <Text style={styles.headerTitle}>Create an account</Text>
-              <Text style={styles.headerSubtitle}>Set up your enterprise profile to access the workspace.</Text>
+              <Text style={styles.headerTitle}>Create account</Text>
+              <Text style={styles.headerSubtitle}>Join your company's attendance system</Text>
             </View>
 
             <View style={styles.formContainer}>
 
-              {/* Name */}
+              {/* Full Name */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Full name</Text>
+                <Text style={styles.inputLabel}>Full Name</Text>
                 <View style={[styles.inputWrapper, focused.name && styles.inputWrapperFocused, fieldErrors.name && styles.inputWrapperError]}>
-                  <UserIcon color={focused.name ? '#2F67F6' : '#9CA3AF'} size={20} />
                   <TextInput
                     style={styles.input}
-                    placeholder="Jordan Lee"
-                    placeholderTextColor="#9CA3AF"
+                    placeholder="John Doe"
+                    placeholderTextColor="#94A3B8"
                     autoCapitalize="words"
                     autoComplete="name"
                     returnKeyType="next"
@@ -168,16 +171,15 @@ const RegisterScreen = ({ navigation }) => {
                 {fieldErrors.name ? <Text style={styles.errorText}>{fieldErrors.name}</Text> : null}
               </View>
 
-              {/* Email */}
+              {/* Work Email */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Corporate email</Text>
+                <Text style={styles.inputLabel}>Work Email</Text>
                 <View style={[styles.inputWrapper, focused.email && styles.inputWrapperFocused, fieldErrors.email && styles.inputWrapperError]}>
-                  <EnvelopeIcon color={focused.email ? '#2F67F6' : '#9CA3AF'} size={20} />
                   <TextInput
                     ref={emailInputRef}
                     style={styles.input}
-                    placeholder="name@company.com"
-                    placeholderTextColor="#9CA3AF"
+                    placeholder="you@corporate.com"
+                    placeholderTextColor="#94A3B8"
                     autoCapitalize="none"
                     textContentType="emailAddress"
                     keyboardType="email-address"
@@ -206,13 +208,11 @@ const RegisterScreen = ({ navigation }) => {
                   ]}
                   activeOpacity={0.8}
                 >
-                  <BriefcaseIcon color={selectedDepartment ? '#2F67F6' : '#9CA3AF'} size={20} />
-                  <Text style={[styles.dropdownText, !selectedDepartment && { color: '#9CA3AF' }]}>
+                  <Text style={[styles.dropdownText, !selectedDepartment && { color: '#94A3B8' }]}>
                     {selectedDepartment
-                      ? departments.find(d => d._id === selectedDepartment)?.name || 'Select Department'
-                      : 'Select Department'}
+                      ? departments.find(d => d._id === selectedDepartment)?.name || 'Engineering'
+                      : 'Engineering'}
                   </Text>
-                  <ChevronDownIcon size={16} color="#9CA3AF" />
                 </TouchableOpacity>
                 {fieldErrors.department ? <Text style={styles.errorText}>{fieldErrors.department}</Text> : null}
 
@@ -253,7 +253,7 @@ const RegisterScreen = ({ navigation }) => {
                               {item.name}
                             </Text>
                             {selectedDepartment === item._id && (
-                              <CheckIcon size={16} color="#2F67F6" />
+                              <CheckIcon size={16} color="#37474F" />
                             )}
                           </TouchableOpacity>
                         )}
@@ -272,15 +272,14 @@ const RegisterScreen = ({ navigation }) => {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <View style={[styles.inputWrapper, focused.password && styles.inputWrapperFocused, fieldErrors.password && styles.inputWrapperError]}>
-                  <KeyIcon color={focused.password ? '#2F67F6' : '#9CA3AF'} size={20} />
                   <TextInput
                     ref={passwordInputRef}
                     style={styles.input}
-                    placeholder="At least 8 characters"
-                    placeholderTextColor="#9CA3AF"
+                    placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                    placeholderTextColor="#94A3B8"
                     autoCapitalize="none"
                     textContentType="password"
-                    secureTextEntry={!showPassword}
+                    secureTextEntry={true}
                     returnKeyType="done"
                     value={password}
                     onChangeText={(t) => {
@@ -291,56 +290,11 @@ const RegisterScreen = ({ navigation }) => {
                     onBlur={() => setFocused((p) => ({ ...p, password: false }))}
                     onSubmitEditing={handleRegister}
                   />
-                  <TouchableOpacity onPress={() => setShowPassword((v) => !v)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    {showPassword ? (
-                      <EyeSlashIcon size={20} color="#9CA3AF" />
-                    ) : (
-                      <EyeIcon size={20} color="#9CA3AF" />
-                    )}
-                  </TouchableOpacity>
                 </View>
 
                 {fieldErrors.password ? (
                   <Text style={styles.errorText}>{fieldErrors.password}</Text>
-                ) : password ? (
-                  <View style={styles.strengthContainer}>
-                    <View style={styles.strengthBars}>
-                      {[0, 1, 2, 3].map((i) => (
-                        <View
-                          key={i}
-                          style={[
-                            styles.strengthBar,
-                            { backgroundColor: i < strength.score ? strengthColors[strength.score] : '#f1f5f9' }
-                          ]}
-                        />
-                      ))}
-                    </View>
-                    <Text style={[styles.strengthLabel, { color: strengthColors[strength.score] }]}>
-                      {strength.label}
-                    </Text>
-                  </View>
                 ) : null}
-              </View>
-
-              {/* Terms */}
-              <View style={styles.termsContainer}>
-                <TouchableOpacity
-                  style={styles.checkboxContainer}
-                  onPress={() => {
-                    setAgreedToTerms((v) => !v);
-                    if (fieldErrors.terms) setFieldErrors((p) => ({ ...p, terms: '' }));
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked, fieldErrors.terms && styles.checkboxError]}>
-                    {agreedToTerms ? <CheckIcon size={12} color="#fff" /> : null}
-                  </View>
-                  <Text style={styles.termsText}>
-                    I agree to the <Text style={styles.linkText}>terms of service</Text> and{' '}
-                    <Text style={styles.linkText}>privacy policy</Text>
-                  </Text>
-                </TouchableOpacity>
-                {fieldErrors.terms ? <Text style={styles.errorText}>{fieldErrors.terms}</Text> : null}
               </View>
 
               {formError ? <Text style={styles.errorTextCenter}>{formError}</Text> : null}
@@ -352,14 +306,14 @@ const RegisterScreen = ({ navigation }) => {
                 style={styles.primaryButton}
               >
                 {loading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.primaryButtonText}>Sign Up</Text>
+                  <Text style={styles.primaryButtonText}>Create Account</Text>
                 )}
               </TouchableOpacity>
 
               <View style={styles.footerContainer}>
-                <Text style={styles.footerText}>Already have an account? </Text>
+                <Text style={styles.footerText}>Already registered? </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('Login')}>
                   <Text style={styles.footerLink}>Sign in</Text>
                 </TouchableOpacity>
@@ -376,7 +330,7 @@ const RegisterScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F8FAFC',
   },
   safeArea: {
     flex: 1,
@@ -386,112 +340,95 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingTop: 60,
+    paddingHorizontal: 24,
+    paddingTop: 24,
     paddingBottom: 40,
   },
-  headerContainer: {
-    marginBottom: 40,
-  },
-  logoBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     marginBottom: 24,
   },
-  logoInner: {
-    width: 20,
-    height: 20,
-    backgroundColor: '#2563eb',
-    borderRadius: 6,
+  headerContainer: {
+    marginBottom: 32,
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#0f172a',
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#0F172A',
     marginBottom: 8,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
   },
   headerSubtitle: {
-    fontSize: 15,
-    color: '#64748b',
-    lineHeight: 22,
+    fontSize: 16,
+    color: '#64748B',
   },
   formContainer: {
     width: '100%',
   },
   primaryButton: {
     flexDirection: 'row',
-    height: 52,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#37474F',
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   inputGroup: {
     marginBottom: 20,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
+    fontWeight: '700',
+    color: '#475569',
     marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
     paddingHorizontal: 16,
-    height: 52,
+    height: 56,
   },
   inputWrapperFocused: {
-    borderColor: '#2563eb',
-    backgroundColor: '#ffffff',
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderColor: '#37474F',
   },
   inputWrapperError: {
-    borderColor: '#ef4444',
+    borderColor: '#EF4444',
   },
   input: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    color: '#0f172a',
+    fontSize: 16,
+    color: '#0F172A',
   },
   dropdownText: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    color: '#0f172a',
+    fontSize: 16,
+    color: '#0F172A',
   },
   errorText: {
-    color: '#ef4444',
-    fontSize: 13,
-    marginTop: 6,
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   errorTextCenter: {
-    color: '#ef4444',
+    color: '#EF4444',
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 16,
@@ -514,42 +451,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '500',
   },
-  termsContainer: {
-    marginBottom: 24,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#cbd5e1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-    marginTop: 2,
-    backgroundColor: '#fff',
-  },
-  checkboxChecked: {
-    backgroundColor: '#2F67F6',
-    borderColor: '#2F67F6',
-  },
-  checkboxError: {
-    borderColor: '#ef4444',
-  },
-  termsText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#475569',
-    lineHeight: 22,
-  },
-  linkText: {
-    color: '#2F67F6',
-    fontWeight: '600',
-  },
   footerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -557,13 +458,13 @@ const styles = StyleSheet.create({
     marginTop: 32,
   },
   footerText: {
-    color: '#64748b',
+    color: '#64748B',
     fontSize: 14,
   },
   footerLink: {
-    color: '#2563eb',
+    color: '#37474F',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
@@ -571,27 +472,22 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
     maxHeight: '60%',
     paddingBottom: Platform.OS === 'ios' ? 30 : 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 10,
   },
   modalHeader: {
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: '#F8FAFC',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#0F172A',
     textAlign: 'center',
   },
   modalOption: {
@@ -601,26 +497,26 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#f8fafc',
+    borderBottomColor: '#F8FAFC',
   },
   modalOptionSelected: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#F8FAFC',
   },
   modalOptionText: {
     fontSize: 16,
-    color: '#334155',
+    color: '#475569',
     fontWeight: '500',
   },
   modalOptionTextSelected: {
-    color: '#2F67F6',
-    fontWeight: '600',
+    color: '#0F172A',
+    fontWeight: '700',
   },
   emptyContainer: {
     padding: 32,
     alignItems: 'center',
   },
   emptyText: {
-    color: '#94a3b8',
+    color: '#94A3B8',
     fontSize: 15,
   },
 });

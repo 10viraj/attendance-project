@@ -1,11 +1,11 @@
 import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { HomeIcon, CameraIcon, CalendarIcon, UserIcon } from 'react-native-heroicons/outline';
-import { HomeIcon as HomeSolid, CameraIcon as CameraSolid, CalendarIcon as CalendarSolid, UserIcon as UserSolid } from 'react-native-heroicons/solid';
+import { HomeIcon, CameraIcon, CalendarIcon, UserIcon, StarIcon } from 'react-native-heroicons/outline';
+import { HomeIcon as HomeSolid, CameraIcon as CameraSolid, CalendarIcon as CalendarSolid, UserIcon as UserSolid, StarIcon as StarSolid } from 'react-native-heroicons/solid';
 
 import DashboardScreen from '../screens/DashboardScreen';
-import AttendanceScreen from '../screens/AttendanceScreen';
+import HolidayScreen from '../screens/HolidayScreen';
 import LeaveScreen from '../screens/LeaveScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
@@ -14,10 +14,10 @@ const Drawer = createDrawerNavigator();
 
 const getIcon = (route, focused, color, size) => {
   let Icon;
-  if (route.name === 'Dashboard') {
+  if (route.name === 'Home') {
     Icon = focused ? HomeSolid : HomeIcon;
-  } else if (route.name === 'Attendance') {
-    Icon = focused ? CameraSolid : CameraIcon;
+  } else if (route.name === 'Holidays') {
+    Icon = focused ? StarSolid : StarIcon;
   } else if (route.name === 'Leave') {
     Icon = focused ? CalendarSolid : CalendarIcon;
   } else if (route.name === 'Profile') {
@@ -27,8 +27,8 @@ const getIcon = (route, focused, color, size) => {
 };
 
 const screens = [
-  { name: 'Dashboard', component: DashboardScreen, label: 'Dashboard' },
-  { name: 'Attendance', component: AttendanceScreen, label: 'Attendance' },
+  { name: 'Home', component: DashboardScreen, label: 'Home' },
+  { name: 'Holidays', component: HolidayScreen, label: 'Holidays' },
   { name: 'Leave', component: LeaveScreen, label: 'Leave' },
   { name: 'Profile', component: ProfileScreen, label: 'Profile' }
 ];

@@ -85,13 +85,15 @@ const AttendanceScreen = ({ navigation }) => {
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       if (!hasHardware) {
-        Alert.alert('Not Supported', 'Your device does not support biometric authentication.');
+        console.log('No biometric hardware detected. Bypassing biometric for attendance.');
+        handleAction(actionType);
         return;
       }
 
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
       if (!isEnrolled) {
-        Alert.alert('Not Set Up', 'Please configure your fingerprint or face ID in your device settings.');
+        console.log('No biometrics enrolled on this device. Bypassing biometric for attendance.');
+        handleAction(actionType);
         return;
       }
 
@@ -131,10 +133,22 @@ const AttendanceScreen = ({ navigation }) => {
 
       const endpoint = `/attendance/${action}`;
 
+      let method = 'Manual';
+      try {
+        const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          method = 'Face';
+        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+          method = 'Fingerprint';
+        }
+      } catch (e) {
+        console.log('Error detecting biometric type, defaulting to Manual');
+      }
+
       const payload = {
         employeeId,
         location: { latitude: 28.6139, longitude: 77.2090 }, // Mock location
-        verificationMethod: 'FaceScan' // Premium terminology
+        verificationMethod: method
       };
 
       const netState = await NetInfo.fetch();

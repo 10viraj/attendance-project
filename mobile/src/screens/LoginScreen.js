@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FingerPrintIcon, KeyIcon, EnvelopeIcon, EyeIcon, EyeSlashIcon } from 'react-native-heroicons/solid';
+import { FingerPrintIcon } from 'react-native-heroicons/solid';
+import { BriefcaseIcon, EyeIcon, EyeSlashIcon, ChevronRightIcon } from 'react-native-heroicons/outline';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import api from '../config/api';
-
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,6 +18,7 @@ const LoginScreen = ({ navigation }) => {
   const [hasSavedSession, setHasSavedSession] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
   const [formError, setFormError] = useState('');
+
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
@@ -28,10 +28,6 @@ const LoginScreen = ({ navigation }) => {
     checkSavedSession();
   }, []);
 
-  // Only detect that a saved session exists. Do NOT trigger the biometric
-  // prompt automatically — let the user see the "locked" state and tap to
-  // unlock themselves. Auto-firing a system biometric sheet before the
-  // screen has rendered is disorienting and feels involuntary.
   const checkSavedSession = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -44,14 +40,26 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleBiometricLogin = async () => {
+    setFormError('');
     setBiometricLoading(true);
     try {
+      const token = await AsyncStorage.getItem('biometricToken') || await AsyncStorage.getItem('userToken');
+      if (!token) {
+        setFormError('Please log in with email and password first to enable biometrics.');
+        return;
+      }
+
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      // If no biometrics available, fall back to auto-login since they
-      // already have a valid token.
-      if (!hasHardware || !isEnrolled) {
+      if (!hasHardware) {
+        setFormError('No biometric hardware detected. Falling back to auto-login...');
+        await autoLogin();
+        return;
+      }
+
+      if (!isEnrolled) {
+        setFormError('No biometrics enrolled on this device. Falling back to auto-login...');
         await autoLogin();
         return;
       }
@@ -59,14 +67,25 @@ const LoginScreen = ({ navigation }) => {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Unlock Attendance App',
         fallbackLabel: 'Use Passcode',
+        disableDeviceFallback: false,
       });
 
       if (result.success) {
+        setFormError('Biometric success! Logging in...');
+        // Restore session from biometric backups
+        await AsyncStorage.setItem('userToken', token);
+        const bUser = await AsyncStorage.getItem('biometricUserInfo');
+        const bEmp = await AsyncStorage.getItem('biometricEmployeeInfo');
+        if (bUser) await AsyncStorage.setItem('userInfo', bUser);
+        if (bEmp) await AsyncStorage.setItem('employeeInfo', bEmp);
+
         await autoLogin();
+      } else {
+        setFormError(`Biometric cancelled or failed: ${result.error || 'Unknown'}`);
       }
     } catch (error) {
       console.error('Biometric error', error);
-      setFormError('Biometric authentication failed. Please try again.');
+      setFormError(`Biometric error: ${error.message || 'Please try again.'}`);
     } finally {
       setBiometricLoading(false);
     }
@@ -121,9 +140,12 @@ const LoginScreen = ({ navigation }) => {
       if (response.data && response.data.token) {
         await AsyncStorage.setItem('userToken', response.data.token);
         await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
+        await AsyncStorage.setItem('biometricToken', response.data.token);
+        await AsyncStorage.setItem('biometricUserInfo', JSON.stringify(response.data.user));
 
         if (response.data.employee) {
           await AsyncStorage.setItem('employeeInfo', JSON.stringify(response.data.employee));
+          await AsyncStorage.setItem('biometricEmployeeInfo', JSON.stringify(response.data.employee));
         }
 
         if (response.data.user.role === 'Admin') {
@@ -149,555 +171,314 @@ const LoginScreen = ({ navigation }) => {
     setHasSavedSession(false);
   };
 
-  // return (
-  //   <LinearGradient colors={['#4f46e5', '#3b82f6', '#0ea5e9']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
-  //     <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-  //     <SafeAreaView className="flex-1">
-  //       <KeyboardAvoidingView
-  //         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-  //         className="flex-1 justify-center px-6"
-  //       >
-  //         <View className="items-center mb-10">
-  //           <View className="w-16 h-16 bg-blue-500/15 rounded-2xl items-center justify-center mb-5">
-  //             <FingerPrintIcon size={32} color="#85B7EB" />
-  //           </View>
-  //           <Text className="text-white font-medium text-2xl text-center">
-  //             {hasSavedSession ? 'App is locked' : 'Welcome back'}
-  //           </Text>
-  //           <Text className="text-slate-400 mt-2 text-sm text-center">
-  //             {hasSavedSession ? 'Authenticate to continue' : 'Mark your attendance smartly'}
-  //           </Text>
-  //         </View>
-
-  //         <View className="w-full max-w-sm mx-auto">
-  //           {hasSavedSession ? (
-  //             <View className="items-center">
-  //               <TouchableOpacity
-  //                 className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600 mb-4"
-  //                 onPress={handleBiometricLogin}
-  //                 disabled={biometricLoading}
-  //                 accessibilityRole="button"
-  //                 accessibilityLabel="Unlock with biometrics"
-  //               >
-  //                 {biometricLoading ? (
-  //                   <ActivityIndicator color="#fff" />
-  //                 ) : (
-  //                   <>
-  //                     <FingerPrintIcon size={18} color="#fff" />
-  //                     <Text className="text-white font-medium text-base ml-2">
-  //                       Unlock with biometrics
-  //                     </Text>
-  //                   </>
-  //                 )}
-  //               </TouchableOpacity>
-
-  //               {formError ? (
-  //                 <Text className="text-red-400 text-sm text-center mb-3">{formError}</Text>
-  //               ) : null}
-
-  //               <TouchableOpacity onPress={switchAccount} accessibilityRole="button">
-  //                 <Text className="text-blue-400 font-medium text-sm">
-  //                   Log in with a different account
-  //                 </Text>
-  //               </TouchableOpacity>
-  //             </View>
-  //           ) : (
-  //             <>
-  //               <View className="mb-1">
-  //                 <Text className="text-slate-400 text-xs mb-1.5 ml-1">Email address</Text>
-  //                 <View
-  //                   className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.email
-  //                       ? 'border-red-500/60'
-  //                       : emailFocused
-  //                         ? 'border-blue-400/60'
-  //                         : 'border-white/10'
-  //                     }`}
-  //                 >
-  //                   <EnvelopeIcon size={18} color="#64748b" />
-  //                   <TextInput
-  //                     className="flex-1 ml-3 text-white text-sm"
-  //                     placeholder="you@company.com"
-  //                     placeholderTextColor="#64748b"
-  //                     autoCapitalize="none"
-  //                     autoComplete="email"
-  //                     keyboardType="email-address"
-  //                     returnKeyType="next"
-  //                     value={email}
-  //                     onChangeText={(t) => {
-  //                       setEmail(t);
-  //                       if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' }));
-  //                     }}
-  //                     onFocus={() => setEmailFocused(true)}
-  //                     onBlur={() => setEmailFocused(false)}
-  //                     onSubmitEditing={() => passwordInputRef.current?.focus()}
-  //                   />
-  //                 </View>
-  //                 {fieldErrors.email ? (
-  //                   <Text className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.email}</Text>
-  //                 ) : null}
-  //               </View>
-
-  //               <View className="mt-3 mb-1">
-  //                 <Text className="text-slate-400 text-xs mb-1.5 ml-1">Password</Text>
-  //                 <View
-  //                   className={`flex-row items-center bg-white/5 px-4 py-3 rounded-xl border ${fieldErrors.password
-  //                       ? 'border-red-500/60'
-  //                       : passwordFocused
-  //                         ? 'border-blue-400/60'
-  //                         : 'border-white/10'
-  //                     }`}
-  //                 >
-  //                   <KeyIcon size={18} color="#64748b" />
-  //                   <TextInput
-  //                     ref={passwordInputRef}
-  //                     className="flex-1 ml-3 text-white text-sm"
-  //                     placeholder="••••••••"
-  //                     placeholderTextColor="#64748b"
-  //                     autoCapitalize="none"
-  //                     autoComplete="password"
-  //                     secureTextEntry={!showPassword}
-  //                     returnKeyType="done"
-  //                     value={password}
-  //                     onChangeText={(t) => {
-  //                       setPassword(t);
-  //                       if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' }));
-  //                     }}
-  //                     onFocus={() => setPasswordFocused(true)}
-  //                     onBlur={() => setPasswordFocused(false)}
-  //                     onSubmitEditing={handleLogin}
-  //                   />
-  //                   <TouchableOpacity
-  //                     onPress={() => setShowPassword((v) => !v)}
-  //                     accessibilityRole="button"
-  //                     accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-  //                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-  //                   >
-  //                     {showPassword ? (
-  //                       <EyeSlashIcon size={18} color="#64748b" />
-  //                     ) : (
-  //                       <EyeIcon size={18} color="#64748b" />
-  //                     )}
-  //                   </TouchableOpacity>
-  //                 </View>
-  //                 {fieldErrors.password ? (
-  //                   <Text className="text-red-400 text-xs mt-1 ml-1">{fieldErrors.password}</Text>
-  //                 ) : null}
-  //               </View>
-
-  //               <View className="items-end mt-1 mb-5">
-  //                 <TouchableOpacity
-  //                   onPress={() => navigation.navigate('ForgotPassword')}
-  //                   accessibilityRole="button"
-  //                 >
-  //                   <Text className="text-blue-400 text-xs font-medium">Forgot password?</Text>
-  //                 </TouchableOpacity>
-  //               </View>
-
-  //               {formError ? (
-  //                 <Text className="text-red-400 text-sm text-center mb-3">{formError}</Text>
-  //               ) : null}
-
-  //               <TouchableOpacity
-  //                 className="w-full bg-blue-500 py-3.5 rounded-xl flex-row justify-center items-center active:bg-blue-600"
-  //                 onPress={handleLogin}
-  //                 disabled={loading}
-  //                 accessibilityRole="button"
-  //               >
-  //                 {loading ? (
-  //                   <ActivityIndicator color="#fff" />
-  //                 ) : (
-  //                   <Text className="text-white font-medium text-base">Log in</Text>
-  //                 )}
-  //               </TouchableOpacity>
-
-  //               <View className="flex-row items-center my-5">
-  //                 <View className="flex-1 h-px bg-white/10" />
-  //                 <Text className="text-slate-500 text-xs mx-3">or</Text>
-  //                 <View className="flex-1 h-px bg-white/10" />
-  //               </View>
-
-  //               <TouchableOpacity
-  //                 className="w-full flex-row items-center justify-center py-3 rounded-xl border border-white/10 active:bg-white/5"
-  //                 onPress={handleBiometricLogin}
-  //                 accessibilityRole="button"
-  //               >
-  //                 <FingerPrintIcon size={18} color="#85B7EB" />
-  //                 <Text className="text-slate-300 font-medium text-sm ml-2">
-  //                   Use biometrics instead
-  //                 </Text>
-  //               </TouchableOpacity>
-
-  //               <View className="flex-row justify-center items-center mt-7">
-  //                 <Text className="text-slate-400 text-sm">Don't have an account? </Text>
-  //                 <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-  //                   <Text className="text-blue-400 font-medium text-sm">Sign up</Text>
-  //                 </TouchableOpacity>
-  //               </View>
-  //             </>
-  //           )}
-  //         </View>
-  //       </KeyboardAvoidingView>
-  //     </SafeAreaView>
-  //   </LinearGradient>
-  // );
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFFFF"
-      />
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} />
 
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1 }}
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingHorizontal: 28,
-              paddingTop: 40,
-              paddingBottom: 30,
-            }}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
-            {/* Header */}
-            <View style={{ marginBottom: 40 }}>
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
-                  backgroundColor: '#F3F4F6',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginBottom: 24,
-                }}
-              >
-                <View
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 8,
-                    backgroundColor: '#2F67F6',
-                  }}
-                />
+            {/* Header Logo */}
+            <View style={styles.logoContainer}>
+              <View style={styles.iconBox}>
+                <BriefcaseIcon color="#FFFFFF" size={24} />
+              </View>
+              <Text style={styles.logoText}>Corporate</Text>
+            </View>
+
+            {/* Welcome Text */}
+            <Text style={styles.titleText}>Welcome back</Text>
+            <Text style={styles.subtitleText}>Sign in to mark your attendance</Text>
+
+            {/* Form Inputs */}
+            <View style={styles.formContainer}>
+              {/* Email */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused, fieldErrors.email && styles.inputWrapperError]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="demo@corporate.com"
+                    placeholderTextColor="#94A3B8"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    returnKeyType="next"
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
+                    onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  />
+                </View>
+                {fieldErrors.email ? <Text style={styles.errorText}>{fieldErrors.email}</Text> : null}
               </View>
 
-              <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: '800',
-                  color: '#0F172A',
-                  lineHeight: 36,
-                  marginBottom: 12,
-                }}
-              >
-                Sign in to your{'\n'}account
-              </Text>
+              {/* Password */}
+              <View style={styles.inputGroup}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Password</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>Forgot password?</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.inputWrapper, passwordFocused && styles.inputWrapperFocused, fieldErrors.password && styles.inputWrapperError]}>
+                  <TextInput
+                    ref={passwordInputRef}
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#94A3B8"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={setPassword}
+                    autoCapitalize="none"
+                    autoComplete="password"
+                    returnKeyType="done"
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => setPasswordFocused(false)}
+                    onSubmitEditing={handleLogin}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    {showPassword ? (
+                      <EyeIcon size={20} color="#475569" />
+                    ) : (
+                      <EyeSlashIcon size={20} color="#475569" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {fieldErrors.password ? <Text style={styles.errorText}>{fieldErrors.password}</Text> : null}
+              </View>
 
-              <Text
-                style={{
-                  fontSize: 15,
-                  lineHeight: 24,
-                  color: '#6B7280',
-                }}
-              >
-                Enter your enterprise credentials to securely access your
-                workspace.
-              </Text>
-            </View>
+              {/* Form Error */}
+              {formError ? <Text style={[styles.errorText, { textAlign: 'center', marginBottom: 12 }]}>{formError}</Text> : null}
 
-            {/* Email */}
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: '700',
-                color: '#1F2937',
-                marginBottom: 8,
-              }}
-            >
-              Email address
-            </Text>
-
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                height: 56,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 16,
-                paddingHorizontal: 16,
-                backgroundColor: '#FFFFFF',
-              }}
-            >
-              <EnvelopeIcon size={20} color="#9CA3AF" />
-
-              <TextInput
-                placeholder="name@company.com"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                  fontSize: 16,
-                  color: '#111827',
-                }}
-              />
-            </View>
-
-            {fieldErrors.email ? (
-              <Text
-                style={{
-                  color: '#EF4444',
-                  marginTop: 8,
-                }}
-              >
-                {fieldErrors.email}
-              </Text>
-            ) : null}
-
-            {/* Password Header */}
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: 24,
-                marginBottom: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: '#1F2937',
-                }}
-              >
-                Password
-              </Text>
-
+              {/* Sign In Button */}
               <TouchableOpacity
-                onPress={() => navigation.navigate('ForgotPassword')}
+                style={styles.signInButton}
+                onPress={handleLogin}
+                disabled={loading}
+                activeOpacity={0.8}
               >
-                <Text
-                  style={{
-                    color: '#2F67F6',
-                    fontWeight: '600',
-                    fontSize: 14,
-                  }}
-                >
-                  Forgot password?
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Password Input */}
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                height: 56,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 16,
-                paddingHorizontal: 16,
-                backgroundColor: '#FFFFFF',
-              }}
-            >
-              <KeyIcon size={20} color="#9CA3AF" />
-
-              <TextInput
-                placeholder="••••••••"
-                placeholderTextColor="#9CA3AF"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                  fontSize: 16,
-                  color: '#111827',
-                }}
-              />
-
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                {showPassword ? (
-                  <EyeSlashIcon size={20} color="#9CA3AF" />
+                {loading ? (
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <EyeIcon size={20} color="#9CA3AF" />
+                  <Text style={styles.signInButtonText}>Sign In</Text>
                 )}
               </TouchableOpacity>
             </View>
 
-            {fieldErrors.password ? (
-              <Text
-                style={{
-                  color: '#EF4444',
-                  marginTop: 8,
-                }}
-              >
-                {fieldErrors.password}
-              </Text>
-            ) : null}
+            {/* Divider */}
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-            {formError ? (
-              <Text
-                style={{
-                  color: '#EF4444',
-                  textAlign: 'center',
-                  marginTop: 20,
-                }}
-              >
-                {formError}
-              </Text>
-            ) : null}
-
-            {/* Sign In Button */}
+            {/* Biometric Card */}
             <TouchableOpacity
-              onPress={handleLogin}
-              disabled={loading}
-              style={{
-                height: 56,
-                backgroundColor: '#2F67F6',
-                borderRadius: 16,
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 32,
-                shadowColor: '#2F67F6',
-                shadowOffset: {
-                  width: 0,
-                  height: 6,
-                },
-                shadowOpacity: 0.25,
-                shadowRadius: 10,
-                elevation: 6,
-              }}
+              style={styles.biometricCard}
+              onPress={handleBiometricLogin}
+              disabled={biometricLoading}
+              activeOpacity={0.7}
             >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+              <View style={styles.biometricIconBox}>
+                <FingerPrintIcon size={24} color="#37474F" />
+              </View>
+              <View style={styles.biometricTextContent}>
+                <Text style={styles.biometricTitle}>Biometric Login</Text>
+                <Text style={styles.biometricSub}>Use Face ID or Fingerprint</Text>
+              </View>
+              {biometricLoading ? (
+                <ActivityIndicator color="#475569" size="small" />
               ) : (
-                <Text
-                  style={{
-                    color: '#FFFFFF',
-                    fontSize: 16,
-                    fontWeight: '700',
-                  }}
-                >
-                  Sign In
-                </Text>
+                <ChevronRightIcon size={20} color="#64748B" />
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginVertical: 32,
-              }}
-            >
-              <View
-                style={{
-                  flex: 1,
-                  height: 1,
-                  backgroundColor: '#E5E7EB',
-                }}
-              />
-
-              <Text
-                style={{
-                  marginHorizontal: 16,
-                  color: '#9CA3AF',
-                  fontSize: 14,
-                  fontWeight: '500',
-                }}
-              >
-                OR
-              </Text>
-
-              <View
-                style={{
-                  flex: 1,
-                  height: 1,
-                  backgroundColor: '#E5E7EB',
-                }}
-              />
-            </View>
-
-            {/* Biometrics */}
-            <TouchableOpacity
-              onPress={handleBiometricLogin}
-              style={{
-                height: 56,
-                borderWidth: 1,
-                borderColor: '#E5E7EB',
-                borderRadius: 16,
-                justifyContent: 'center',
-                alignItems: 'center',
-                flexDirection: 'row',
-                backgroundColor: '#FFFFFF',
-              }}
-            >
-              <FingerPrintIcon size={20} color="#111827" />
-
-              <Text
-                style={{
-                  fontSize: 16,
-                  fontWeight: '600',
-                  color: '#111827',
-                  marginLeft: 10,
-                }}
-              >
-                Sign in with Biometrics
-              </Text>
-            </TouchableOpacity>
-
-            {/* Footer */}
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'center',
-                alignItems: 'center',
-                marginTop: 32,
-              }}
-            >
-              <Text
-                style={{
-                  color: '#6B7280',
-                  fontSize: 14,
-                }}
-              >
-                Don't have an account?
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Register')}
-              >
-                <Text
-                  style={{
-                    color: '#2F67F6',
-                    fontSize: 14,
-                    fontWeight: '600',
-                    marginLeft: 6,
-                  }}
-                >
-                  Sign Up
-                </Text>
+            {/* Sign Up Link */}
+            <View style={styles.footerContainer}>
+              <Text style={styles.footerText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                <Text style={styles.footerLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
+
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 40,
+    flexGrow: 1,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  iconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#37474F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  logoText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  titleText: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    letterSpacing: -1,
+  },
+  subtitleText: {
+    fontSize: 16,
+    color: '#64748B',
+    marginBottom: 40,
+  },
+  formContainer: {
+    marginBottom: 32,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  inputWrapperFocused: {
+    borderColor: '#37474F',
+  },
+  inputWrapperError: {
+    borderColor: '#EF4444',
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#0F172A',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  signInButton: {
+    backgroundColor: '#37474F',
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  signInButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#64748B',
+    fontSize: 14,
+  },
+  biometricCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 32,
+  },
+  biometricIconBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  biometricTextContent: {
+    flex: 1,
+  },
+  biometricTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  biometricSub: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  footerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 'auto',
+  },
+  footerText: {
+    color: '#64748B',
+    fontSize: 14,
+  },
+  footerLink: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});
 
 export default LoginScreen;

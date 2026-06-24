@@ -16,6 +16,7 @@ import AdminMonthlyReportScreen from './src/screens/admin/AdminMonthlyReportScre
 import AttendanceHistoryScreen from './src/screens/AttendanceHistoryScreen';
 import HolidayScreen from './src/screens/HolidayScreen';
 import DocumentVaultScreen from './src/screens/DocumentVaultScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
@@ -52,6 +53,7 @@ export default function App() {
           <Stack.Screen name="AttendanceHistory" component={AttendanceHistoryScreen} />
           <Stack.Screen name="HolidayCalendar" component={HolidayScreen} />
           <Stack.Screen name="DocumentVault" component={DocumentVaultScreen} />
+          <Stack.Screen name="Settings" component={SettingsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

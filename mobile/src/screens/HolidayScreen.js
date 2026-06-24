@@ -1,10 +1,8 @@
-import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, StatusBar, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, StatusBar, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CalendarIcon, MapPinIcon, StarIcon, SparklesIcon } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import api from '../config/api';
 
 const HolidayScreen = ({ navigation }) => {
@@ -34,72 +32,81 @@ const HolidayScreen = ({ navigation }) => {
     }, [])
   );
 
-  const getHolidayIcon = (type) => {
-    switch(type) {
-      case 'Company': return <StarIcon color="#2563eb" size={24} />;
-      case 'Regional': return <MapPinIcon color="#10b981" size={24} />;
-      case 'Festival': return <SparklesIcon color="#f59e0b" size={24} />;
-      default: return <CalendarIcon color="#64748b" size={24} />;
-    }
+  const parseDate = (dateString) => {
+    const d = new Date(dateString);
+    return {
+      day: d.toLocaleDateString('en-US', { day: '2-digit' }),
+      month: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+      weekday: d.toLocaleDateString('en-US', { weekday: 'long' }),
+    };
   };
 
-  const getHolidayColor = (type) => {
-    switch(type) {
-      case 'Company': return '#eff6ff';
-      case 'Regional': return '#ecfdf5';
-      case 'Festival': return '#fffbeb';
-      default: return '#f8fafc';
-    }
-  };
-
-  const formatDate = (dateString) => {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
-  };
+  const currentYear = new Date().getFullYear();
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-      <LinearGradient
-        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerBackground}
-      />
-
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Holiday Calendar</Text>
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" translucent={false} />
+      
+      {/* Dark Header Area */}
+      <View style={styles.headerBackground}>
+        <SafeAreaView edges={['top']} style={{ flex: 0 }} />
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTopLabel}>{currentYear} Calendar</Text>
+          <Text style={styles.headerMainTitle}>Holidays</Text>
+          <Text style={styles.headerSubtitle}>
+            {holidays.length} planned company & national holidays this year
+          </Text>
         </View>
+      </View>
 
+      <View style={styles.listContainer}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {loading ? (
-            <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 40 }} />
+            <ActivityIndicator size="large" color="#0F172A" style={{ marginTop: 40 }} />
           ) : holidays.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>No upcoming holidays found.</Text>
             </View>
           ) : (
-            holidays.map((holiday) => (
-              <View key={holiday._id} style={styles.card}>
-                <View style={[styles.iconBox, { backgroundColor: getHolidayColor(holiday.type) }]}>
-                  {getHolidayIcon(holiday.type)}
-                </View>
-                <View style={styles.holidayInfo}>
-                  <Text style={styles.holidayName}>{holiday.name}</Text>
-                  <Text style={styles.holidayDate}>{formatDate(holiday.date)}</Text>
-                  <View style={styles.typeBadge}>
-                    <Text style={styles.typeBadgeText}>{holiday.type} Holiday</Text>
+            holidays.map((holiday) => {
+              const { day, month, weekday } = parseDate(holiday.date);
+              
+              // Formatting the subtitle: "Weekday • Description"
+              let subText = weekday;
+              if (holiday.description) {
+                subText += ` • ${holiday.description}`;
+              }
+
+              return (
+                <View key={holiday._id} style={styles.card}>
+                  
+                  {/* Left Date Block */}
+                  <View style={styles.dateBlock}>
+                    <Text style={styles.dateDay}>{day}</Text>
+                    <Text style={styles.dateMonth}>{month}</Text>
                   </View>
-                  {holiday.description && (
-                    <Text style={styles.holidayDesc}>{holiday.description}</Text>
-                  )}
+                  
+                  {/* Middle Text Block */}
+                  <View style={styles.textBlock}>
+                    <Text style={styles.holidayTitle}>{holiday.name}</Text>
+                    <Text style={styles.holidaySubtitle} numberOfLines={2}>
+                      {subText}
+                    </Text>
+                  </View>
+
+                  {/* Right Badge */}
+                  <View style={styles.badgeContainer}>
+                    <View style={styles.badgePill}>
+                      <Text style={styles.badgeText}>{holiday.type || 'Company'}</Text>
+                    </View>
+                  </View>
+
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     </View>
   );
 };
@@ -107,97 +114,119 @@ const HolidayScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F8FAFC',
   },
   headerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 180,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    backgroundColor: '#0F172A',
+    paddingBottom: 40,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
-  safeArea: {
+  headerContent: {
+    paddingHorizontal: 24,
+    paddingTop: 30,
+  },
+  headerTopLabel: {
+    color: '#E2E8F0',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  headerMainTitle: {
+    color: '#FFFFFF',
+    fontSize: 48,
+    fontWeight: '800',
+    letterSpacing: -1,
+    marginBottom: 12,
+  },
+  headerSubtitle: {
+    color: '#CBD5E1',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  listContainer: {
     flex: 1,
-  },
-  headerRow: {
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 30,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    backgroundColor: '#F8FAFC', // Off-white background from image
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 24,
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 16,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  iconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+  dateBlock: {
+    width: 64,
+    height: 72,
+    backgroundColor: '#E2E8F0', // light gray square
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
-  holidayInfo: {
-    flex: 1,
+  dateDay: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 2,
   },
-  holidayName: {
-    fontSize: 17,
+  dateMonth: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#1e293b',
+    color: '#475569',
+    letterSpacing: 1,
+  },
+  textBlock: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  holidayTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
     marginBottom: 4,
   },
-  holidayDate: {
+  holidaySubtitle: {
     fontSize: 14,
-    color: '#64748b',
-    fontWeight: '500',
-    marginBottom: 8,
+    color: '#64748B',
+    lineHeight: 20,
   },
-  typeBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 6,
+  badgeContainer: {
+    marginLeft: 12,
+    justifyContent: 'center',
   },
-  typeBadgeText: {
+  badgePill: {
+    backgroundColor: '#FAE8E8', // Light peach/tan background
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  badgeText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  holidayDesc: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginTop: 4,
-    lineHeight: 18,
+    fontWeight: '700',
+    color: '#334155',
   },
   emptyContainer: {
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 60,
   },
   emptyText: {
     fontSize: 16,
-    color: '#64748b',
+    color: '#64748B',
     fontStyle: 'italic',
   }
 });

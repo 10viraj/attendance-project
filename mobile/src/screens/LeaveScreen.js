@@ -1,14 +1,14 @@
-import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, TextInput, ScrollView } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, TextInput, ScrollView, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CalendarDaysIcon, DocumentTextIcon } from 'react-native-heroicons/outline';
+import { CalendarDaysIcon, PlusIcon, XMarkIcon, BriefcaseIcon, SunIcon, FaceSmileIcon } from 'react-native-heroicons/outline';
+import { PaperAirplaneIcon } from 'react-native-heroicons/solid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { LinearGradient } from 'expo-linear-gradient';
 import api from '../config/api';
 
-const LEAVE_TYPES = ['Casual', 'Sick', 'Earned'];
+const LEAVE_TYPES = ['Sick', 'Casual', 'Earned'];
 
 const LeaveScreen = () => {
   const [activeTab, setActiveTab] = useState('Leave');
@@ -16,6 +16,9 @@ const LeaveScreen = () => {
   const [balances, setBalances] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // Modal State
+  const [isApplyModalVisible, setApplyModalVisible] = useState(false);
 
   // Form State
   const [type, setType] = useState('Casual');
@@ -29,24 +32,22 @@ const LeaveScreen = () => {
   const [tempStartDate, setTempStartDate] = useState(new Date());
   const [tempEndDate, setTempEndDate] = useState(new Date());
 
-  const loadData = async (tab) => {
+  const loadData = async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) return;
 
-      const endpoint = tab === 'Leave' ? '/leaves' : '/wfh';
-      const res = await api.get(endpoint, {
+      const res = await api.get('/leaves', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRecords(res.data.data || []);
 
-      if (tab === 'Leave') {
-        const balRes = await api.get('/leaves/balances', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setBalances(balRes.data.data);
-      }
+      const balRes = await api.get('/leaves/balances', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBalances(balRes.data.data);
+
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -56,8 +57,8 @@ const LeaveScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      loadData(activeTab);
-    }, [activeTab])
+      loadData();
+    }, [])
   );
 
   const onStartChange = (event, selectedDate) => {
@@ -78,16 +79,16 @@ const LeaveScreen = () => {
 
   const handleSubmit = async () => {
     if (!startDate || !endDate || !reason) {
-      Alert.alert('Error', 'Please fill in all fields (Dates format: YYYY-MM-DD)');
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    if (activeTab === 'Leave' && balances && type !== 'Earned') {
+    if (balances) {
       const typeKey = type.toLowerCase();
       const limit = balances[typeKey].total;
       const used = balances[typeKey].used;
       const requestedDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
-      
+
       if (used + requestedDays > limit) {
         Alert.alert('Limit Exceeded', `You cannot apply for this leave. You only have ${limit - used} ${type} leave(s) remaining this month.`);
         return;
@@ -97,19 +98,19 @@ const LeaveScreen = () => {
     setSubmitting(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
-      const payload = activeTab === 'Leave' ? { type, startDate, endDate, reason } : { startDate, endDate, reason };
-      const endpoint = activeTab === 'Leave' ? '/leaves' : '/wfh';
-      
-      const res = await api.post(endpoint, payload, {
+      const payload = { type, startDate, endDate, reason };
+
+      const res = await api.post('/leaves', payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (res.data.success) {
-        Alert.alert('Success', `${activeTab} application submitted successfully!`);
+        Alert.alert('Success', 'Application submitted successfully!');
         setStartDate('');
         setEndDate('');
         setReason('');
-        loadData(activeTab);
+        setApplyModalVisible(false);
+        loadData();
       }
     } catch (error) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to submit application');
@@ -119,198 +120,255 @@ const LeaveScreen = () => {
   };
 
   const getStatusColor = (status) => {
-    switch(status) {
-      case 'Approved': return '#10b981'; // emerald-500
-      case 'Rejected': return '#e11d48'; // rose-600
-      default: return '#f59e0b'; // amber-500
+    switch (status) {
+      case 'Approved': return '#10b981';
+      case 'Rejected': return '#e11d48';
+      default: return '#f59e0b';
     }
+  };
+
+  // Calculate balances using requested limits minus actual usage
+  const getDaysLeft = (typeKey) => {
+    let limit = 0;
+    if (typeKey === 'sick') limit = 5;
+    if (typeKey === 'casual') limit = 5;
+    if (typeKey === 'earned') limit = 10;
+
+    let used = 0;
+    if (balances && balances[typeKey]) {
+      used = balances[typeKey].used || 0;
+    }
+
+    return Math.max(0, limit - used);
+  };
+
+  const getLeaveIcon = (typeName, isActive) => {
+    const color = isActive ? '#FFFFFF' : '#64748B';
+    if (typeName === 'Sick') return <BriefcaseIcon color={color} size={24} />;
+    if (typeName === 'Casual') return <FaceSmileIcon color={color} size={24} />;
+    if (typeName === 'Earned') return <SunIcon color={color} size={24} />;
+    return null;
+  };
+
+  const getLeaveDotColor = (typeName) => {
+    if (typeName === 'Sick') return '#9F1239';
+    if (typeName === 'Casual') return '#9A3412';
+    if (typeName === 'Earned') return '#166534';
+    return '#64748B';
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="transparent" barStyle="light-content" translucent={true} />
-      <LinearGradient
-        colors={['#4f46e5', '#3b82f6', '#0ea5e9']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerBackground}
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} />
 
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Requests</Text>
-        </View>
 
-        <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'Leave' && styles.tabButtonActive]}
-            onPress={() => setActiveTab('Leave')}
+        {/* Header Section */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>Leaves</Text>
+            <Text style={styles.headerSubtitle}>Manage your time off</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.applyButton}
             activeOpacity={0.8}
+            onPress={() => setApplyModalVisible(true)}
           >
-            <Text style={[styles.tabText, activeTab === 'Leave' && styles.tabTextActive]}>Leave</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'WFH' && styles.tabButtonActive]}
-            onPress={() => setActiveTab('WFH')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.tabText, activeTab === 'WFH' && styles.tabTextActive]}>Work From Home</Text>
+            <PlusIcon color="#FFFFFF" size={20} style={{ marginRight: 6 }} />
+            <Text style={styles.applyButtonText}>Apply</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          
-          {/* Leave Balances */}
-          {activeTab === 'Leave' && balances && (
-            <View style={styles.balanceContainer}>
-              <View style={styles.balanceCard}>
-                <Text style={styles.balanceValue}>{Math.max(0, balances.casual.total - balances.casual.used)}</Text>
-                <Text style={styles.balanceLabel}>Casual Left</Text>
-                <Text style={styles.balanceSub}>of {balances.casual.total}/mo</Text>
-              </View>
-              <View style={styles.balanceCard}>
-                <Text style={styles.balanceValue}>{Math.max(0, balances.sick.total - balances.sick.used)}</Text>
-                <Text style={styles.balanceLabel}>Sick Left</Text>
-                <Text style={styles.balanceSub}>of {balances.sick.total}/mo</Text>
-              </View>
-              <View style={styles.balanceCard}>
-                <Text style={styles.balanceValue}>{balances.earned.used}</Text>
-                <Text style={styles.balanceLabel}>Earned/Cut</Text>
-                <Text style={styles.balanceSub}>Used this mo</Text>
-              </View>
-            </View>
-          )}
 
-          {/* Apply Form Card */}
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>Apply for {activeTab}</Text>
-            
-            {activeTab === 'Leave' && (
-              <>
-                <Text style={styles.inputLabel}>Leave Type</Text>
-                <View style={styles.typeContainer}>
-                  {LEAVE_TYPES.map((t) => (
-                    <TouchableOpacity 
-                      key={t}
-                      style={[styles.typeButton, type === t && styles.typeButtonActive]}
-                      onPress={() => setType(t)}
-                    >
-                      <Text style={[styles.typeText, type === t && styles.typeTextActive]}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
+          {/* LEAVE BALANCE */}
+          <Text style={styles.sectionTitleLabel}>LEAVE BALANCE</Text>
 
-            <View style={styles.rowInputs}>
-              <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>Start Date</Text>
-                <TouchableOpacity 
-                  style={[styles.input, { justifyContent: 'center' }]} 
-                  onPress={() => setShowStartPicker(true)}
-                >
-                  <Text style={{ color: startDate ? '#334155' : '#94a3b8' }}>
-                    {startDate || 'Select Date'}
-                  </Text>
-                </TouchableOpacity>
-                {showStartPicker && (
-                  <DateTimePicker
-                    value={tempStartDate}
-                    mode="date"
-                    display="default"
-                    onChange={onStartChange}
-                  />
-                )}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.balanceContainer}>
+            {/* Sick Leave Card */}
+            <View style={styles.balanceCard}>
+              <View style={[styles.badgePill, { backgroundColor: '#FFE4E6' }]}>
+                <Text style={[styles.badgeText, { color: '#9F1239' }]}>Sick</Text>
               </View>
-              
-              <View style={styles.halfInput}>
-                <Text style={styles.inputLabel}>End Date</Text>
-                <TouchableOpacity 
-                  style={[styles.input, { justifyContent: 'center' }]} 
-                  onPress={() => setShowEndPicker(true)}
-                >
-                  <Text style={{ color: endDate ? '#334155' : '#94a3b8' }}>
-                    {endDate || 'Select Date'}
-                  </Text>
-                </TouchableOpacity>
-                {showEndPicker && (
-                  <DateTimePicker
-                    value={tempEndDate}
-                    mode="date"
-                    display="default"
-                    onChange={onEndChange}
-                    minimumDate={tempStartDate}
-                  />
-                )}
-              </View>
+              <Text style={styles.balanceValue}>{getDaysLeft('sick')}</Text>
+              <Text style={styles.balanceSub}>days left</Text>
             </View>
 
-            <Text style={styles.inputLabel}>Reason</Text>
-            <View style={styles.textAreaWrapper}>
-              <DocumentTextIcon color="#64748b" size={20} style={styles.textAreaIcon} />
-              <TextInput 
-                style={styles.textArea}
-                placeholder="Briefly explain your reason..."
-                placeholderTextColor="#94a3b8"
-                multiline
-                numberOfLines={3}
-                value={reason}
-                onChangeText={setReason}
-              />
+            {/* Casual Leave Card */}
+            <View style={styles.balanceCard}>
+              <View style={[styles.badgePill, { backgroundColor: '#FFEDD5' }]}>
+                <Text style={[styles.badgeText, { color: '#9A3412' }]}>Casual</Text>
+              </View>
+              <Text style={styles.balanceValue}>{getDaysLeft('casual')}</Text>
+              <Text style={styles.balanceSub}>days left</Text>
             </View>
 
-            <TouchableOpacity 
-              style={styles.submitButton}
-              onPress={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitButtonText}>Submit Application</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+            {/* Earned Leave Card */}
+            <View style={styles.balanceCard}>
+              <View style={[styles.badgePill, { backgroundColor: '#DCFCE7' }]}>
+                <Text style={[styles.badgeText, { color: '#166534' }]}>Earned</Text>
+              </View>
+              <Text style={styles.balanceValue}>{getDaysLeft('earned')}</Text>
+              <Text style={styles.balanceSub}>days left</Text>
+            </View>
+          </ScrollView>
 
-          {/* Leave History */}
-          <Text style={styles.historyTitle}>My {activeTab} History</Text>
+          {/* RECENT REQUESTS */}
+          <Text style={styles.sectionTitleLabel}>RECENT REQUESTS</Text>
+
           {loading ? (
-            <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 20 }} />
+            <ActivityIndicator size="large" color="#37474F" style={{ marginTop: 20 }} />
           ) : records.length === 0 ? (
-            <Text style={styles.emptyText}>You haven't applied for any {activeTab.toLowerCase()} yet.</Text>
+            <View style={styles.emptyStateContainer}>
+              <View style={styles.airplaneIconWrap}>
+                <PaperAirplaneIcon color="#64748B" size={48} style={{ transform: [{ rotate: '-45deg' }] }} />
+              </View>
+              <Text style={styles.emptyStateTitle}>No active leave requests</Text>
+              <Text style={styles.emptyStateSub}>Tap Apply to request time off</Text>
+            </View>
           ) : (
-            records.map((record) => (
-              <View key={record._id} style={styles.historyCard}>
-                <View style={styles.historyHeader}>
-                  <View style={styles.historyIconBox}>
-                    <CalendarDaysIcon color="#2563eb" size={24} />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 16 }}>
-                    <Text style={styles.historyType}>{activeTab === 'Leave' ? `${record.type} Leave` : 'WFH Request'}</Text>
+            records.map((record) => {
+              const startStr = new Date(record.startDate).toISOString().split('T')[0];
+              const endStr = new Date(record.endDate).toISOString().split('T')[0];
+              const days = Math.ceil((new Date(record.endDate) - new Date(record.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+              
+              return (
+                <View key={record._id} style={styles.historyCard}>
+                  <View style={[styles.historyDot, { backgroundColor: getLeaveDotColor(record.type) }]} />
+                  <View style={styles.historyContent}>
+                    <Text style={styles.historyType}>{record.type} Leave</Text>
                     <Text style={styles.historyDates}>
-                      {new Date(record.startDate).toLocaleDateString()} - {new Date(record.endDate).toLocaleDateString()}
+                      {startStr} → {endStr} • {days}d
                     </Text>
+                    {record.reason && (
+                      <Text style={styles.historyReason} numberOfLines={2}>
+                        {record.reason}
+                      </Text>
+                    )}
                   </View>
-                  <View style={[styles.badge, { backgroundColor: getStatusColor(record.status) + '20' }]}>
-                    <Text style={[styles.badgeText, { color: getStatusColor(record.status) }]}>{record.status}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(record.status) + '20' }]}>
+                    <Text style={[styles.statusBadgeText, { color: getStatusColor(record.status) }]}>{record.status.toUpperCase()}</Text>
                   </View>
                 </View>
-                {record.reason && (
-                  <Text style={styles.historyReason} numberOfLines={2}>
-                    "{record.reason}"
-                  </Text>
-                )}
-                {record.managerRemark && (
-                  <View style={styles.remarkBox}>
-                    <Text style={styles.remarkText}>HR: {record.managerRemark}</Text>
-                  </View>
-                )}
-              </View>
-            ))
+              );
+            })
           )}
 
         </ScrollView>
       </SafeAreaView>
+
+      {/* Application Form Modal */}
+      <Modal
+        visible={isApplyModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setApplyModalVisible(false)}
+      >
+        <SafeAreaView style={styles.fullModalOverlay}>
+          <View style={styles.fullModalContent}>
+
+            {/* Modal Header */}
+            <View style={styles.modalHeaderRow}>
+              <TouchableOpacity onPress={() => setApplyModalVisible(false)} style={styles.modalCloseBtn}>
+                <XMarkIcon color="#0F172A" size={20} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitleCentered}>Apply Leave</Text>
+              <View style={{ width: 44 }} />
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalFormContent}>
+
+              {/* Leave Type Cards */}
+              <Text style={styles.modalInputLabel}>Leave Type</Text>
+              <View style={styles.typeCardRow}>
+                {LEAVE_TYPES.map((t) => {
+                  const isActive = type === t;
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      style={[styles.typeCard, isActive && styles.typeCardActive]}
+                      onPress={() => setType(t)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.typeIconBg, isActive && styles.typeIconBgActive]}>
+                        {getLeaveIcon(t, isActive)}
+                      </View>
+                      <Text style={[styles.typeCardText, isActive && styles.typeCardTextActive]}>{t}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Start Date */}
+              <Text style={styles.modalInputLabel}>Start Date</Text>
+              <TouchableOpacity
+                style={styles.fullInput}
+                onPress={() => setShowStartPicker(true)}
+              >
+                <Text style={styles.inputText}>
+                  {startDate || 'YYYY-MM-DD'}
+                </Text>
+              </TouchableOpacity>
+              {showStartPicker && (
+                <DateTimePicker
+                  value={tempStartDate}
+                  mode="date"
+                  display="default"
+                  onChange={onStartChange}
+                  minimumDate={new Date()}
+                />
+              )}
+
+              {/* End Date */}
+              <Text style={styles.modalInputLabel}>End Date</Text>
+              <TouchableOpacity
+                style={styles.fullInput}
+                onPress={() => setShowEndPicker(true)}
+              >
+                <Text style={styles.inputText}>
+                  {endDate || 'YYYY-MM-DD'}
+                </Text>
+              </TouchableOpacity>
+              {showEndPicker && (
+                <DateTimePicker
+                  value={tempEndDate}
+                  mode="date"
+                  display="default"
+                  onChange={onEndChange}
+                  minimumDate={tempStartDate}
+                />
+              )}
+
+              {/* Reason */}
+              <Text style={styles.modalInputLabel}>Reason</Text>
+              <TextInput
+                style={styles.reasonTextArea}
+                placeholder="Why are you requesting this leave?"
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={4}
+                value={reason}
+                onChangeText={setReason}
+              />
+
+              <TouchableOpacity
+                style={styles.modalSubmitBtn}
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalSubmitBtnText}>Submit Request</Text>
+                )}
+              </TouchableOpacity>
+
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
     </View>
   );
 };
@@ -318,280 +376,285 @@ const LeaveScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  headerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 180,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    backgroundColor: '#F8FAFC',
   },
   safeArea: {
     flex: 1,
   },
   headerRow: {
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    paddingBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+    letterSpacing: -1,
   },
-  tabContainer: {
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#64748B',
+  },
+  applyButton: {
     flexDirection: 'row',
-    marginHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    padding: 4,
-    marginBottom: 20,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
     alignItems: 'center',
-    borderRadius: 12,
+    backgroundColor: '#37474F',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
   },
-  tabButtonActive: {
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabText: {
-    color: '#bfdbfe',
-    fontWeight: '600',
+  applyButtonText: {
+    color: '#FFFFFF',
     fontSize: 15,
-  },
-  tabTextActive: {
-    color: '#2563eb',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingBottom: 40,
+  },
+  sectionTitleLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
+    letterSpacing: 1,
+    marginBottom: 16,
   },
   balanceContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 24,
+    paddingRight: 24,
   },
   balanceCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 12,
-    flex: 1,
-    marginHorizontal: 4,
-    alignItems: 'center',
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  balanceValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#2563eb',
-  },
-  balanceLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  balanceSub: {
-    fontSize: 10,
-    color: '#94a3b8',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 24,
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 5,
-    marginBottom: 30,
+    width: 150,
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748b',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  typeContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  typeButton: {
-    flex: 1,
-    backgroundColor: '#f1f5f9',
-    paddingVertical: 12,
+  badgePill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 12,
-    alignItems: 'center',
-    marginHorizontal: 2,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  typeButtonActive: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#3b82f6',
-  },
-  typeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  typeTextActive: {
-    color: '#2563eb',
-  },
-  rowInputs: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  halfInput: {
-    width: '48%',
-  },
-  input: {
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    height: 52,
-    fontSize: 15,
-    color: '#334155',
-  },
-  textAreaWrapper: {
-    flexDirection: 'row',
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    marginBottom: 24,
-  },
-  textAreaIcon: {
-    marginRight: 10,
-    marginTop: 2,
-  },
-  textArea: {
-    flex: 1,
-    height: 80,
-    textAlignVertical: 'top',
-    fontSize: 15,
-    color: '#334155',
-  },
-  submitButton: {
-    backgroundColor: '#2563eb',
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2563eb',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  submitButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  historyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
     marginBottom: 16,
   },
-  emptyText: {
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 20,
-    fontStyle: 'italic',
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  balanceValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  balanceSub: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  airplaneIconWrap: {
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  emptyStateSub: {
+    fontSize: 15,
+    color: '#64748B',
   },
   historyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#ffffff',
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    shadowColor: '#94a3b8',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  historyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+  historyDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 16,
   },
-  historyIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+  historyContent: {
+    flex: 1,
+    marginRight: 16,
   },
   historyType: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: '#0F172A',
+    marginBottom: 4,
   },
   historyDates: {
     fontSize: 13,
-    color: '#64748b',
-    marginTop: 2,
+    color: '#64748B',
+    marginBottom: 6,
   },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '700',
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   historyReason: {
     fontSize: 14,
     color: '#475569',
-    fontStyle: 'italic',
   },
-  remarkBox: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+
+  // FULL SCREEN MODAL STYLES
+  fullModalOverlay: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
   },
-  remarkText: {
-    fontSize: 13,
-    color: '#e11d48',
-    fontWeight: '500',
+  fullModalContent: {
+    flex: 1,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
+  },
+  modalCloseBtn: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  modalTitleCentered: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalFormContent: {
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalInputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 12,
+  },
+  typeCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  typeCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: 'center',
+    marginHorizontal: 6,
+  },
+  typeCardActive: {
+    borderColor: '#B45309', // Brown/Orange border
+    borderWidth: 2,
+  },
+  typeIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  typeIconBgActive: {
+    backgroundColor: '#B45309', // Brown/Orange fill
+  },
+  typeCardText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  typeCardTextActive: {
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  fullInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 56,
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#0F172A',
+  },
+  reasonTextArea: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    height: 120,
+    textAlignVertical: 'top',
+    fontSize: 16,
+    color: '#0F172A',
+    marginBottom: 32,
+  },
+  modalSubmitBtn: {
+    backgroundColor: '#37474F',
+    height: 60,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 
