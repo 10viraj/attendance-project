@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getEmployees, getEmployee, updateEmployee, deleteEmployee, updateMyProfile } = require('../controllers/employeeController');
+const { getEmployees, getEmployee, updateEmployee, deleteEmployee, updateMyProfile, uploadProfilePicture, upload } = require('../controllers/employeeController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
 router.route('/')
@@ -8,6 +8,9 @@ router.route('/')
 
 router.route('/profile')
   .put(protect, updateMyProfile);
+
+router.route('/profile-picture')
+  .post(protect, upload.single('image'), uploadProfilePicture);
 
 router.route('/:id')
   .get(protect, getEmployee)

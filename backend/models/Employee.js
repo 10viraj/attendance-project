@@ -23,6 +23,11 @@ const employeeSchema = new mongoose.Schema({
   phone: {
     type: String
   },
+  skills: [String],
+  profilePicture: {
+    type: String,
+    default: null
+  },
   address: {
     street: String,
     city: String,

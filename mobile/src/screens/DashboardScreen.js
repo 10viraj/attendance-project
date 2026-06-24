@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ClockIcon, CalendarDaysIcon, ViewfinderCircleIcon, PaperAirplaneIcon, ArrowTrendingUpIcon } from 'react-native-heroicons/outline';
+import { ClockIcon, CalendarDaysIcon, ViewfinderCircleIcon, PaperAirplaneIcon, ArrowTrendingUpIcon, ArrowRightOnRectangleIcon } from 'react-native-heroicons/outline';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -40,6 +40,8 @@ const DashboardScreen = ({ navigation }) => {
   
   const [punchInTime, setPunchInTime] = useState('—');
   const [punchOutTime, setPunchOutTime] = useState('—');
+  const [checkInDateObj, setCheckInDateObj] = useState(null);
+  const [checkOutDateObj, setCheckOutDateObj] = useState(null);
 
   const [biometricType, setBiometricType] = useState('Face'); // default
 
@@ -94,15 +96,23 @@ const DashboardScreen = ({ navigation }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        const currentStatus = statusRes.data.status === 'Not Checked In' ? 'Not Started' : (statusRes.data.status || 'Not Started');
+        let currentStatus = statusRes.data.status === 'Not Checked In' ? 'Not Started' : (statusRes.data.status || 'Not Started');
+        
+        // Safeguard in case backend hasn't been restarted with the 'Checked Out' status fix
+        if (statusRes.data.data && statusRes.data.data.checkOut && statusRes.data.data.checkOut.time) {
+          currentStatus = 'Checked Out';
+        }
+
         setStatus(currentStatus);
         
         if (statusRes.data.data) {
           const attendanceData = statusRes.data.data;
           if (attendanceData.checkIn && attendanceData.checkIn.time) {
+            setCheckInDateObj(new Date(attendanceData.checkIn.time));
             setPunchInTime(new Date(attendanceData.checkIn.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
           }
           if (attendanceData.checkOut && attendanceData.checkOut.time) {
+            setCheckOutDateObj(new Date(attendanceData.checkOut.time));
             setPunchOutTime(new Date(attendanceData.checkOut.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
           }
         }
@@ -240,19 +250,45 @@ const DashboardScreen = ({ navigation }) => {
   // Determine what button to show
   let buttonAction = 'check-in';
   let buttonText = `Punch In with ${biometricType}`;
+  let buttonColor = '#2E4040';
+  let ButtonIcon = ViewfinderCircleIcon;
+
   if (status === 'Checked In' || status === 'On Break') {
      buttonAction = 'check-out';
-     buttonText = `Punch Out with ${biometricType}`;
+     buttonText = 'Punch Out';
+     buttonColor = '#9B2C2C'; // Red
+     ButtonIcon = ArrowRightOnRectangleIcon;
   } else if (status === 'Checked Out') {
      buttonText = 'Shift Completed';
+     buttonColor = '#10B981'; // Green
+     ButtonIcon = ViewfinderCircleIcon;
   }
 
   // Format the status for the pill
   const getDisplayStatus = (s) => {
-    if (s === 'Checked In') return 'Shift Started';
+    if (s === 'Checked In') return 'On Shift';
     if (s === 'Checked Out') return 'Shift Completed';
     return s;
   };
+
+  let clockLabel = "Today's Shift";
+  let clockDisplay = formattedTime;
+
+  if (status === 'Checked In' && checkInDateObj) {
+    clockLabel = "Time Worked";
+    const diff = Math.max(0, Math.floor((currentTime - checkInDateObj) / 1000));
+    const hrs = Math.floor(diff / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+    const secs = (diff % 60).toString().padStart(2, '0');
+    clockDisplay = `${hrs}:${mins}:${secs}`;
+  } else if (status === 'Checked Out' && checkInDateObj && checkOutDateObj) {
+    clockLabel = "Time Worked";
+    const diff = Math.max(0, Math.floor((checkOutDateObj - checkInDateObj) / 1000));
+    const hrs = Math.floor(diff / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+    const secs = (diff % 60).toString().padStart(2, '0');
+    clockDisplay = `${hrs}:${mins}:${secs}`;
+  }
 
   return (
     <View style={styles.container}>
@@ -277,18 +313,18 @@ const DashboardScreen = ({ navigation }) => {
           </View>
 
           {/* Main Punch Card */}
-          <View style={styles.punchCard}>
+          <View style={[styles.punchCard, status === 'Checked In' && { backgroundColor: '#1E3A34' }]}>
             <View style={styles.punchCardHeader}>
               <View style={styles.statusPill}>
-                <View style={[styles.statusDot, { backgroundColor: status === 'Checked In' ? '#10B981' : '#9CA3AF' }]} />
+                <View style={[styles.statusDot, { backgroundColor: (status === 'Checked In' || status === 'Checked Out') ? '#10B981' : '#9CA3AF' }]} />
                 <Text style={styles.statusPillText}>{loading ? '...' : getDisplayStatus(status)}</Text>
               </View>
               <Text style={styles.punchCardDate}>{shortDate}</Text>
             </View>
 
             <View style={styles.clockContainer}>
-              <Text style={styles.shiftLabel}>Today's Shift</Text>
-              <Text style={styles.liveClock}>{formattedTime}</Text>
+              <Text style={styles.shiftLabel}>{clockLabel}</Text>
+              <Text style={styles.liveClock}>{clockDisplay}</Text>
             </View>
 
             <View style={styles.punchTimesBox}>
@@ -306,7 +342,11 @@ const DashboardScreen = ({ navigation }) => {
 
           {/* Punch Button */}
           <TouchableOpacity 
-            style={[styles.punchButton, status === 'Checked Out' && styles.punchButtonDisabled]}
+            style={[
+              styles.punchButton, 
+              { backgroundColor: buttonColor },
+              status === 'Checked Out' && { opacity: 0.9 }
+            ]}
             onPress={() => authenticateAndAction(buttonAction)}
             disabled={processing || status === 'Checked Out'}
             activeOpacity={0.8}
@@ -315,7 +355,7 @@ const DashboardScreen = ({ navigation }) => {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <ViewfinderCircleIcon size={24} color="#ffffff" style={{ marginRight: 10 }} />
+                <ButtonIcon size={24} color="#ffffff" style={{ marginRight: 10 }} />
                 <Text style={styles.punchButtonText}>{buttonText}</Text>
               </>
             )}

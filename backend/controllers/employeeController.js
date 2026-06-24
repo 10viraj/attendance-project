@@ -1,5 +1,36 @@
 const Employee = require('../models/Employee');
 const User = require('../models/User');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadsDir)){
+    fs.mkdirSync(uploadsDir);
+}
+
+// Configure multer for local storage
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function(req, file, cb) {
+    cb(null, `profile-${req.user._id}-${Date.now()}${path.extname(file.originalname)}`);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: function(req, file, cb) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Not an image! Please upload an image.'), false);
+    }
+  }
+});
 
 // @desc    Get all employees
 // @route   GET /api/employees
@@ -161,10 +192,43 @@ const updateMyProfile = async (req, res, next) => {
   }
 };
 
+// @desc    Upload profile picture
+// @route   POST /api/employees/profile-picture
+// @access  Private
+const uploadProfilePicture = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400);
+      throw new Error('Please upload a file');
+    }
+
+    // Construct the URL to access the uploaded file
+    // Assuming backend runs on the same host, or we return the relative path
+    const fileUrl = `/uploads/${req.file.filename}`;
+
+    const employee = await Employee.findOneAndUpdate(
+      { user: req.user._id },
+      { $set: { profilePicture: fileUrl } },
+      { new: true }
+    );
+
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee profile not found');
+    }
+
+    res.json({ success: true, data: employee });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getEmployees,
   getEmployee,
   updateEmployee,
   deleteEmployee,
-  updateMyProfile
+  updateMyProfile,
+  uploadProfilePicture,
+  upload
 };

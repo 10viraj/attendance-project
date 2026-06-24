@@ -99,9 +99,6 @@ const ProfileScreen = ({ navigation }) => {
             </View>
 
             <Text style={styles.nameText}>{getFullName()}</Text>
-
-
-
             <View style={styles.badgePill}>
               <IdentificationIcon color="#37474F" size={16} style={{ marginRight: 6 }} />
               <Text style={styles.badgeText}>{getEmployeeId()}</Text>
