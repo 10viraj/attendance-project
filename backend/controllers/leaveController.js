@@ -24,30 +24,25 @@ const applyLeave = async (req, res, next) => {
     const end = new Date(endDate);
     const requestedDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
-    // Check monthly limits for Casual and Sick leaves
-    if (type === 'Casual' || type === 'Sick') {
-      const currentMonthStart = new Date(start.getFullYear(), start.getMonth(), 1);
-      const currentMonthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-
-      // Find all pending/approved leaves of this type in the same month
-      const existingLeaves = await Leave.find({
+    let available = 0;
+    if (type === 'Casual') available = employee.leaveBalance.casualLeave;
+    else if (type === 'Sick') available = employee.leaveBalance.sickLeave;
+    else if (type === 'Earned') available = employee.leaveBalance.earnedLeave;
+    
+    if (type !== 'Unpaid') {
+      const pendingLeaves = await Leave.find({
         employee: employee._id,
         type,
-        status: { $in: ['Pending', 'Approved'] },
-        startDate: { $gte: currentMonthStart, $lte: currentMonthEnd }
+        status: 'Pending'
       });
-
-      const usedDays = existingLeaves.reduce((total, lv) => {
-        const lvDays = Math.ceil((new Date(lv.endDate) - new Date(lv.startDate)) / (1000 * 60 * 60 * 24)) + 1;
-        return total + lvDays;
+      const pendingDays = pendingLeaves.reduce((total, lv) => {
+        return total + Math.ceil((new Date(lv.endDate) - new Date(lv.startDate)) / (1000 * 60 * 60 * 24)) + 1;
       }, 0);
 
-      const limit = type === 'Casual' ? 3 : 2;
-      
-      if (usedDays + requestedDays > limit) {
+      if (requestedDays + pendingDays > available) {
         return res.status(400).json({ 
           success: false, 
-          message: `Monthly limit exceeded for ${type} leave. You have ${limit - usedDays} day(s) remaining this month.` 
+          message: `Limit exceeded. You only have ${available - pendingDays} ${type} leave(s) available.` 
         });
       }
     }
@@ -145,35 +140,39 @@ const getLeaveBalances = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Employee not found' });
     }
 
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
-    const existingLeaves = await Leave.find({
+    const allLeaves = await Leave.find({
       employee: employee._id,
-      status: { $in: ['Pending', 'Approved'] },
-      startDate: { $gte: currentMonthStart, $lte: currentMonthEnd }
+      status: { $in: ['Pending', 'Approved'] }
     });
 
-    let usedCasual = 0;
-    let usedSick = 0;
-    let usedEarned = 0;
-    let usedUnpaid = 0;
+    let usedCasual = 0, usedSick = 0, usedEarned = 0, usedUnpaid = 0;
+    let approvedCasual = 0, approvedSick = 0, approvedEarned = 0;
 
-    existingLeaves.forEach(lv => {
+    allLeaves.forEach(lv => {
       const days = Math.ceil((new Date(lv.endDate) - new Date(lv.startDate)) / (1000 * 60 * 60 * 24)) + 1;
-      if (lv.type === 'Casual') usedCasual += days;
-      if (lv.type === 'Sick') usedSick += days;
-      if (lv.type === 'Earned') usedEarned += days;
-      if (lv.type === 'Unpaid') usedUnpaid += days;
+      if (lv.type === 'Casual') {
+        usedCasual += days;
+        if (lv.status === 'Approved') approvedCasual += days;
+      }
+      else if (lv.type === 'Sick') {
+        usedSick += days;
+        if (lv.status === 'Approved') approvedSick += days;
+      }
+      else if (lv.type === 'Earned') {
+        usedEarned += days;
+        if (lv.status === 'Approved') approvedEarned += days;
+      }
+      else if (lv.type === 'Unpaid') {
+        usedUnpaid += days;
+      }
     });
 
     res.json({
       success: true,
       data: {
-        casual: { used: usedCasual, total: 3 },
-        sick: { used: usedSick, total: 2 },
-        earned: { used: usedEarned, total: 'N/A' },
+        casual: { used: usedCasual, total: employee.leaveBalance.casualLeave + approvedCasual },
+        sick: { used: usedSick, total: employee.leaveBalance.sickLeave + approvedSick },
+        earned: { used: usedEarned, total: employee.leaveBalance.earnedLeave + approvedEarned },
         unpaid: { used: usedUnpaid, total: 'N/A' }
       }
     });
@@ -182,4 +181,178 @@ const getLeaveBalances = async (req, res, next) => {
   }
 };
 
-module.exports = { applyLeave, getLeaves, updateLeaveStatus, getLeaveBalances };
+// @desc    Update a leave
+// @route   PUT /api/leaves/:id
+// @access  Private
+const updateLeave = async (req, res, next) => {
+  try {
+    const { startDate, endDate, type, reason } = req.body;
+    
+    if (type === 'Comp Off') {
+      return res.status(400).json({ success: false, message: 'Comp Off is no longer supported.' });
+    }
+
+    const employee = await Employee.findOne({ user: req.user._id });
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee profile not found');
+    }
+
+    let leave = await Leave.findById(req.params.id);
+    if (!leave) {
+      res.status(404);
+      throw new Error('Leave not found');
+    }
+
+    if (leave.employee.toString() !== employee._id.toString()) {
+      res.status(403);
+      throw new Error('Not authorized to update this leave');
+    }
+
+    if (leave.status !== 'Pending') {
+      return res.status(400).json({ success: false, message: 'Can only update pending leaves' });
+    }
+
+    let available = 0;
+    if (type === 'Casual') available = employee.leaveBalance.casualLeave;
+    else if (type === 'Sick') available = employee.leaveBalance.sickLeave;
+    else if (type === 'Earned') available = employee.leaveBalance.earnedLeave;
+
+    if (type !== 'Unpaid') {
+      const pendingLeaves = await Leave.find({
+        employee: employee._id,
+        type,
+        status: 'Pending',
+        _id: { $ne: leave._id }
+      });
+      const pendingDays = pendingLeaves.reduce((total, lv) => {
+        return total + Math.ceil((new Date(lv.endDate) - new Date(lv.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+      }, 0);
+
+      if (requestedDays + pendingDays > available) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Limit exceeded. You only have ${available - pendingDays} ${type} leave(s) available.` 
+        });
+      }
+    }
+
+    leave.startDate = startDate;
+    leave.endDate = endDate;
+    leave.type = type;
+    leave.reason = reason;
+
+    await leave.save();
+
+    res.json({ success: true, data: leave });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a leave
+// @route   DELETE /api/leaves/:id
+// @access  Private
+const deleteLeave = async (req, res, next) => {
+  try {
+    const employee = await Employee.findOne({ user: req.user._id });
+    if (!employee) {
+      res.status(404);
+      throw new Error('Employee profile not found');
+    }
+
+    const leave = await Leave.findById(req.params.id);
+    if (!leave) {
+      res.status(404);
+      throw new Error('Leave not found');
+    }
+
+    if (leave.employee.toString() !== employee._id.toString()) {
+      res.status(403);
+      throw new Error('Not authorized to delete this leave');
+    }
+
+    if (leave.status !== 'Pending') {
+      return res.status(400).json({ success: false, message: 'Can only delete pending leaves' });
+    }
+
+    await leave.deleteOne();
+
+    res.json({ success: true, message: 'Leave removed' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get aggregate leave balance report for Excel export
+// @route   GET /api/leaves/report
+// @access  Private
+const getLeaveBalanceReport = async (req, res, next) => {
+  try {
+    let empQuery = {};
+    if (req.user.role === 'Employee') {
+      const emp = await Employee.findOne({ user: req.user._id });
+      if (!emp) return res.status(404).json({ success: false, message: 'Employee not found' });
+      empQuery._id = emp._id;
+    }
+
+    const employees = await Employee.find(empQuery).populate('department', 'name');
+    
+    const allLeaves = await Leave.find({
+      employee: { $in: employees.map(e => e._id) },
+      status: 'Approved'
+    }).sort('-startDate');
+
+    const reportData = employees.map(emp => {
+      const empLeaves = allLeaves.filter(l => l.employee.toString() === emp._id.toString());
+      
+      let usedCL = 0, usedSL = 0, usedEL = 0, usedUnpaid = 0;
+      let lastLeaveReason = '-';
+      let lastLeaveType = '-';
+      
+      if (empLeaves.length > 0) {
+        lastLeaveReason = empLeaves[0].reason || '-';
+        lastLeaveType = empLeaves[0].type || '-';
+      }
+
+      empLeaves.forEach(lv => {
+        const days = Math.ceil((new Date(lv.endDate) - new Date(lv.startDate)) / (1000 * 60 * 60 * 24)) + 1;
+        if (lv.type === 'Casual') usedCL += days;
+        if (lv.type === 'Sick') usedSL += days;
+        if (lv.type === 'Earned') usedEL += days;
+        if (lv.type === 'Unpaid') usedUnpaid += days;
+      });
+
+      const totalCL = emp.leaveBalance?.casualLeave || 8;
+      const totalSL = emp.leaveBalance?.sickLeave || 8;
+      const totalEL = emp.leaveBalance?.earnedLeave || 14;
+
+      return {
+        empId: emp.employeeId,
+        name: `${emp.firstName} ${emp.lastName}`,
+        department: emp.department ? emp.department.name : 'N/A',
+        designation: emp.designation || 'N/A',
+        clAllocated: totalCL,
+        slAllocated: totalSL,
+        elAllocated: totalEL,
+        clUsed: usedCL,
+        slUsed: usedSL,
+        elUsed: usedEL,
+        clLeft: Math.max(0, totalCL - usedCL),
+        slLeft: Math.max(0, totalSL - usedSL),
+        elLeft: Math.max(0, totalEL - usedEL),
+        used: usedCL + usedSL + usedEL + usedUnpaid,
+        total: totalCL + totalSL + totalEL,
+        status: emp.isActive ? 'Active' : 'Inactive',
+        lastLeaveType,
+        lastLeaveReason
+      };
+    });
+
+    res.json({ success: true, data: reportData });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { applyLeave, getLeaves, updateLeaveStatus, getLeaveBalances, updateLeave, deleteLeave, getLeaveBalanceReport };

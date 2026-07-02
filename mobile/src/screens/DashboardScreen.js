@@ -35,6 +35,10 @@ const DashboardScreen = ({ navigation }) => {
   const [presentDays, setPresentDays] = useState('0');
   const [absentDays, setAbsentDays] = useState('0');
   const [weeklyHours, setWeeklyHours] = useState('0h');
+
+  const [weeklyStats, setWeeklyStats] = useState({ present: '0', absent: '0', hours: '0h' });
+  const [monthlyStats, setMonthlyStats] = useState({ present: '0', absent: '0', hours: '0h' });
+  const [statsView, setStatsView] = useState('Weekly'); // 'Weekly' or 'Monthly'
   
   const [currentTime, setCurrentTime] = useState(new Date());
   
@@ -123,15 +127,37 @@ const DashboardScreen = ({ navigation }) => {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (statsRes.data.success) {
-            setPresentDays((statsRes.data.data.presentDays || 0).toString());
-            setAbsentDays((statsRes.data.data.absentDays || 0).toString());
-            
-            // Format "Xh Ym" to just "X.Yh" for the compact UI
-            const hoursMatch = statsRes.data.data.weeklyHoursFormatted.match(/(\d+)h/);
-            const minsMatch = statsRes.data.data.weeklyHoursFormatted.match(/(\d+)m/);
-            const h = hoursMatch ? parseInt(hoursMatch[1]) : 0;
-            const m = minsMatch ? parseInt(minsMatch[1]) : 0;
-            setWeeklyHours(`${(h + m/60).toFixed(1)}h`);
+            const processHours = (formatted) => {
+              const hMatch = formatted.match(/(\d+)h/);
+              const mMatch = formatted.match(/(\d+)m/);
+              const h = hMatch ? parseInt(hMatch[1]) : 0;
+              const m = mMatch ? parseInt(mMatch[1]) : 0;
+              return `${(h + m/60).toFixed(1)}h`;
+            };
+
+            if (statsRes.data.data.weekly) {
+              const w = statsRes.data.data.weekly;
+              setWeeklyStats({
+                present: (w.presentDays || 0).toString(),
+                absent: (w.absentDays || 0).toString(),
+                hours: processHours(w.hoursFormatted || '0h 0m')
+              });
+            }
+            if (statsRes.data.data.monthly) {
+              const m = statsRes.data.data.monthly;
+              setMonthlyStats({
+                present: (m.presentDays || 0).toString(),
+                absent: (m.absentDays || 0).toString(),
+                hours: processHours(m.hoursFormatted || '0h 0m')
+              });
+            } else if (statsRes.data.data.presentDays !== undefined) {
+              // Fallback for older backend responses during reload
+              setMonthlyStats({
+                present: (statsRes.data.data.presentDays || 0).toString(),
+                absent: (statsRes.data.data.absentDays || 0).toString(),
+                hours: '0h'
+              });
+            }
           }
         } catch (statsErr) {
           console.error('Error loading stats:', statsErr);
@@ -239,7 +265,7 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
-  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const formattedTime = currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   const formattedDate = currentTime.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   const shortDate = currentTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -290,6 +316,8 @@ const DashboardScreen = ({ navigation }) => {
     clockDisplay = `${hrs}:${mins}:${secs}`;
   }
 
+  const currentStats = statsView === 'Weekly' ? weeklyStats : monthlyStats;
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" translucent={false} />
@@ -299,9 +327,9 @@ const DashboardScreen = ({ navigation }) => {
           {/* Header Section */}
           <View style={styles.headerRow}>
             <View>
-              <Text style={styles.greetingSub}>Good morning,</Text>
+              <Text style={styles.greetingSub}>{formattedDate} • {formattedTime}</Text>
               <Text style={styles.greetingMain}>{userName}</Text>
-              <Text style={styles.greetingDate}>{formattedDate}</Text>
+              <Text style={styles.greetingDate}>Punch In: {punchInTime}  •  Punch Out: {punchOutTime}</Text>
             </View>
             <TouchableOpacity 
               style={styles.avatarCircle}
@@ -319,7 +347,7 @@ const DashboardScreen = ({ navigation }) => {
                 <View style={[styles.statusDot, { backgroundColor: (status === 'Checked In' || status === 'Checked Out') ? '#10B981' : '#9CA3AF' }]} />
                 <Text style={styles.statusPillText}>{loading ? '...' : getDisplayStatus(status)}</Text>
               </View>
-              <Text style={styles.punchCardDate}>{shortDate}</Text>
+              <Text style={styles.punchCardDate}>{shortDate} • {formattedTime}</Text>
             </View>
 
             <View style={styles.clockContainer}>
@@ -361,14 +389,29 @@ const DashboardScreen = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
-          {/* This Week Stats */}
-          <Text style={styles.sectionTitle}>This Week</Text>
+          {/* Stats Toggle Section */}
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Overview</Text>
+            
+            <View style={styles.statsFilterContainer}>
+              {['Weekly', 'Monthly'].map(f => (
+                <TouchableOpacity 
+                  key={f} 
+                  style={[styles.statsFilterChip, statsView === f && styles.statsFilterChipActive]}
+                  onPress={() => setStatsView(f)}
+                >
+                  <Text style={[styles.statsFilterChipText, statsView === f && styles.statsFilterChipTextActive]}>{f}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <View style={styles.statIconWrap}>
                 <ClockIcon size={24} color="#111827" />
               </View>
-              <Text style={styles.statValue}>{weeklyHours}</Text>
+              <Text style={styles.statValue}>{currentStats.hours}</Text>
               <Text style={styles.statLabel}>Hours</Text>
             </View>
 
@@ -376,7 +419,7 @@ const DashboardScreen = ({ navigation }) => {
               <View style={styles.statIconWrap}>
                 <CalendarDaysIcon size={24} color="#111827" />
               </View>
-              <Text style={styles.statValue}>{presentDays}</Text>
+              <Text style={styles.statValue}>{currentStats.present}</Text>
               <Text style={styles.statLabel}>Present</Text>
             </View>
 
@@ -384,7 +427,7 @@ const DashboardScreen = ({ navigation }) => {
               <View style={styles.statIconWrap}>
                 <ArrowTrendingUpIcon size={24} color="#111827" style={{ transform: [{ rotate: '180deg' }] }} />
               </View>
-              <Text style={styles.statValue}>{absentDays}</Text>
+              <Text style={styles.statValue}>{currentStats.absent}</Text>
               <Text style={styles.statLabel}>Absent</Text>
             </View>
           </View>
@@ -640,6 +683,33 @@ const styles = StyleSheet.create({
   quickActionSub: {
     fontSize: 13,
     color: '#64748B',
+  },
+  statsFilterContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 2,
+  },
+  statsFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  statsFilterChipActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statsFilterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  statsFilterChipTextActive: {
+    color: '#0F172A',
   },
 });
 

@@ -236,7 +236,7 @@ const getEmployeeStats = async (req, res, next) => {
     const presentDaysThisMonth = await Attendance.countDocuments({
       employee: employee._id,
       date: { $gte: startOfMonth, $lte: now },
-      status: 'Present'
+      status: { $in: ['Present', 'Half-Day', 'Late'] }
     });
 
     const attendancePercentage = weekdaysPassed > 0 
@@ -250,28 +250,62 @@ const getEmployeeStats = async (req, res, next) => {
     startOfWeek.setDate(now.getDate() - daysSinceMonday);
     startOfWeek.setHours(0, 0, 0, 0);
 
+    let weekdaysPassedThisWeek = 0;
+    for (let d = new Date(startOfWeek); d <= now; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 0 && d.getDay() !== 6) {
+        weekdaysPassedThisWeek++;
+      }
+    }
+
     const thisWeekRecords = await Attendance.find({
       employee: employee._id,
       date: { $gte: startOfWeek, $lte: now }
     });
 
-    let totalHours = 0;
+    let weeklyTotalHours = 0;
+    let presentDaysThisWeek = 0;
     thisWeekRecords.forEach(record => {
+      if (record.status === 'Present' || record.status === 'Half-Day' || record.status === 'Late') {
+         presentDaysThisWeek++;
+      }
       if (record.workingHours) {
-        totalHours += record.workingHours;
+        weeklyTotalHours += record.workingHours;
       }
     });
 
-    const hours = Math.floor(totalHours);
-    const minutes = Math.round((totalHours - hours) * 60);
+    const weeklyHours = Math.floor(weeklyTotalHours);
+    const weeklyMinutes = Math.round((weeklyTotalHours - weeklyHours) * 60);
+
+    // 3. Calculate Hours This Month
+    const thisMonthRecords = await Attendance.find({
+      employee: employee._id,
+      date: { $gte: startOfMonth, $lte: now }
+    });
+
+    let monthlyTotalHours = 0;
+    thisMonthRecords.forEach(record => {
+      if (record.workingHours) {
+        monthlyTotalHours += record.workingHours;
+      }
+    });
+    
+    const monthlyHours = Math.floor(monthlyTotalHours);
+    const monthlyMinutes = Math.round((monthlyTotalHours - monthlyHours) * 60);
 
     res.json({
       success: true,
       data: {
         attendancePercentage,
-        presentDays: presentDaysThisMonth,
-        absentDays: Math.max(0, weekdaysPassed - presentDaysThisMonth),
-        weeklyHoursFormatted: `${hours}h ${minutes}m`,
+        monthly: {
+          presentDays: presentDaysThisMonth,
+          absentDays: Math.max(0, weekdaysPassed - presentDaysThisMonth),
+          hoursFormatted: `${monthlyHours}h ${monthlyMinutes}m`
+        },
+        weekly: {
+          presentDays: presentDaysThisWeek,
+          absentDays: Math.max(0, weekdaysPassedThisWeek - presentDaysThisWeek),
+          hoursFormatted: `${weeklyHours}h ${weeklyMinutes}m`
+        },
         shiftName: employee.shift ? employee.shift.name : 'Standard Shift',
         shiftTime: employee.shift ? `${employee.shift.startTime} - ${employee.shift.endTime}` : '09:00 - 18:00'
       }
