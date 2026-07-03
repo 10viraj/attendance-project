@@ -1,9 +1,17 @@
 const Shift = require('../models/Shift');
+const Employee = require('../models/Employee');
 
 const getShifts = async (req, res, next) => {
   try {
-    const shifts = await Shift.find();
-    res.json({ success: true, data: shifts });
+    const shifts = await Shift.find().lean();
+    const employees = await Employee.find({ shift: { $ne: null } }, '_id shift');
+    
+    const shiftsWithEmployees = shifts.map(shift => {
+      const assignedEmps = employees.filter(emp => emp.shift.toString() === shift._id.toString());
+      return { ...shift, employeeIds: assignedEmps.map(emp => emp._id) };
+    });
+    
+    res.json({ success: true, data: shiftsWithEmployees });
   } catch (error) {
     next(error);
   }
@@ -11,8 +19,53 @@ const getShifts = async (req, res, next) => {
 
 const createShift = async (req, res, next) => {
   try {
-    const shift = await Shift.create(req.body);
+    const { employeeIds, ...shiftData } = req.body;
+    const shift = await Shift.create(shiftData);
+    
+    if (employeeIds && Array.isArray(employeeIds)) {
+      await Employee.updateMany({ _id: { $in: employeeIds } }, { shift: shift._id });
+    }
+    
     res.status(201).json({ success: true, data: shift });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateShift = async (req, res, next) => {
+  try {
+    const { employeeIds, ...shiftData } = req.body;
+    const shift = await Shift.findByIdAndUpdate(req.params.id, shiftData, {
+      new: true,
+      runValidators: true
+    });
+    
+    if (!shift) {
+      return res.status(404).json({ success: false, message: 'Shift not found' });
+    }
+    
+    if (employeeIds && Array.isArray(employeeIds)) {
+      // Unassign employees who were previously on this shift but not in the new list
+      // Or just clear all from this shift, and assign the new ones.
+      await Employee.updateMany({ shift: shift._id }, { shift: null });
+      if (employeeIds.length > 0) {
+        await Employee.updateMany({ _id: { $in: employeeIds } }, { shift: shift._id });
+      }
+    }
+    
+    res.json({ success: true, data: shift });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteShift = async (req, res, next) => {
+  try {
+    const shift = await Shift.findByIdAndDelete(req.params.id);
+    if (!shift) {
+      return res.status(404).json({ success: false, message: 'Shift not found' });
+    }
+    res.json({ success: true, data: {} });
   } catch (error) {
     next(error);
   }
@@ -35,4 +88,4 @@ const seedShifts = async (req, res, next) => {
   }
 };
 
-module.exports = { getShifts, createShift, seedShifts };
+module.exports = { getShifts, createShift, updateShift, deleteShift, seedShifts };

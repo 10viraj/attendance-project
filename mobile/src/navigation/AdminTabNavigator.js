@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { HomeIcon, UsersIcon, UserIcon, CalendarDaysIcon, CalendarIcon, ChartBarIcon } from 'react-native-heroicons/outline';
+import { HomeIcon, UsersIcon, UserIcon, CalendarDaysIcon, CalendarIcon, ChartBarIcon, ClockIcon } from 'react-native-heroicons/outline';
 import { HomeIcon as HomeSolid, UsersIcon as UsersSolid, UserIcon as UserSolid, CalendarDaysIcon as CalendarDaysSolid, CalendarIcon as CalendarSolid, ChartBarIcon as ChartBarSolid } from 'react-native-heroicons/solid';
 
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
@@ -11,6 +11,8 @@ import AdminHolidaysScreen from '../screens/admin/AdminHolidaysScreen';
 import AdminMonthlyReportScreen from '../screens/admin/AdminMonthlyReportScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import AdminEmployeeDetailScreen from '../screens/admin/AdminEmployeeDetailScreen';
+import AdminShiftsScreen from '../screens/admin/AdminShiftsScreen';
+import { ClockIcon as ClockSolid } from 'react-native-heroicons/solid';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -25,6 +27,8 @@ const getIcon = (route, focused, color, size) => {
     Icon = focused ? CalendarDaysSolid : CalendarDaysIcon;
   } else if (route.name === 'AdminHolidays') {
     Icon = focused ? CalendarSolid : CalendarIcon;
+  } else if (route.name === 'AdminShifts') {
+    Icon = focused ? ClockSolid : ClockIcon;
   } else if (route.name === 'AdminMonthlyReport') {
     Icon = focused ? ChartBarSolid : ChartBarIcon;
   } else if (route.name === 'AdminProfile') {
@@ -39,6 +43,7 @@ const screens = [
   { name: 'AdminEmployees', component: AdminEmployeesScreen, label: 'Employees' },
   { name: 'AdminLeaves', component: AdminLeavesScreen, label: 'Leaves' },
   { name: 'AdminHolidays', component: AdminHolidaysScreen, label: 'Holidays' },
+  { name: 'AdminShifts', component: AdminShiftsScreen, label: 'Shifts' },
   { name: 'AdminMonthlyReport', component: AdminMonthlyReportScreen, label: 'Reports' },
   { name: 'AdminProfile', component: AdminProfileScreen, label: 'Profile' }
 ];

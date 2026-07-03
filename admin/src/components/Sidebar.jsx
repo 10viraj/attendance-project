@@ -8,6 +8,7 @@ import {
   FileText,
   Settings,
   Megaphone,
+  Clock,
 } from 'lucide-react';
 
 const navGroups = [
@@ -29,6 +30,7 @@ const navGroups = [
   {
     label: 'Organize',
     items: [
+      { name: 'Shifts', path: '/shifts', icon: Clock },
       { name: 'Reports', path: '/reports', icon: FileText },
       { name: 'Announcements', path: '/announcements', icon: Megaphone },
     ],

@@ -144,7 +144,6 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
         phone: editPhone.trim(),
         designation: editDesignation.trim(),
         department: editDept || undefined,
-        shift: editShift || undefined,
         password: editPassword.trim() || undefined,
       }, {
         headers: { Authorization: `Bearer ${token}` },
@@ -581,27 +580,6 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
                       onPress={() => setEditDept(item._id)}
                     >
                       <Text style={[styles.chipText, editDept === item._id && styles.chipTextActive]}>{item.name}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Assigned Shift</Text>
-                <FlatList
-                  data={shifts}
-                  keyExtractor={(item) => item._id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ paddingVertical: 4 }}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={[styles.chipBtn, editShift === item._id && styles.chipBtnActive]}
-                      onPress={() => setEditShift(item._id)}
-                    >
-                      <Text style={[styles.chipText, editShift === item._id && styles.chipTextActive]}>
-                        {item.name} ({item.startTime}–{item.endTime})
-                      </Text>
                     </TouchableOpacity>
                   )}
                 />

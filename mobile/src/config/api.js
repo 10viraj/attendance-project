@@ -1,8 +1,16 @@
 import axios from 'axios';
 
+import { Platform } from 'react-native';
+
 // The local IP address where your backend is running.
 // 192.168.1.4 is your current local IP, and 5000 is the backend port.
-export const API_URL = 'http://192.168.1.4:5000/api';
+let BASE_URL = 'http://192.168.1.4:5000/api';
+
+if (Platform.OS === 'web') {
+  BASE_URL = `http://${window.location.hostname}:5000/api`;
+}
+
+export const API_URL = BASE_URL;
 
 const api = axios.create({
   baseURL: API_URL,

@@ -271,22 +271,6 @@ const EmployeeProfile = () => {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-slate-400" /> Work Shift
-                  </label>
-                  <select
-                    name="shift"
-                    value={formData.shift}
-                    onChange={handleChange}
-                    className="input-field"
-                  >
-                    <option value="">Select Shift</option>
-                    {shifts.map(s => (
-                      <option key={s._id} value={s._id}>{s.name} ({s.startTime} - {s.endTime})</option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </div>
 

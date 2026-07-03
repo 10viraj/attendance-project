@@ -16,6 +16,7 @@ import Reports from './pages/Reports';
 import Announcements from './pages/Announcements';
 import Profile from './pages/Profile';
 import EmployeeProfile from './pages/EmployeeProfile';
+import Shifts from './pages/Shifts';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -41,6 +42,7 @@ function App() {
           <Route path="employees/:id" element={<EmployeeProfile />} />
           <Route path="leaves" element={<Leaves />} />
           <Route path="holidays" element={<Holidays />} />
+          <Route path="shifts" element={<Shifts />} />
           <Route path="reports" element={<Reports />} />
           <Route path="announcements" element={<Announcements />} />
           <Route path="profile" element={<Profile />} />

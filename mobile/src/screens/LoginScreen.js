@@ -33,6 +33,9 @@ const LoginScreen = ({ navigation }) => {
       const token = await AsyncStorage.getItem('userToken');
       if (token) {
         setHasSavedSession(true);
+        if (Platform.OS === 'web') {
+          await autoLogin();
+        }
       }
     } catch (e) {
       console.error('Error checking session', e);
@@ -157,7 +160,7 @@ const LoginScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Login Error:', error.response?.data || error.message);
       setFormError(
-        error.response?.data?.message || 'Invalid credentials or server error. Please try again.'
+        error.response?.data?.message || `Error: ${error.message}`
       );
     } finally {
       setLoading(false);
