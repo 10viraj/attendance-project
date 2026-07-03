@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Users, Clock, UserCheck, CalendarOff } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import api from '../services/api';
+import socket from '../services/socket';
+import toast from 'react-hot-toast';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -32,6 +34,19 @@ const Dashboard = () => {
       }
     };
     fetchAnalytics();
+
+    // Setup Socket.IO listener for real-time check-ins
+    const handleAttendanceUpdate = (data) => {
+      toast.success(data.message, { icon: '👏' });
+      // Refetch the analytics instantly
+      fetchAnalytics();
+    };
+
+    socket.on('attendanceUpdate', handleAttendanceUpdate);
+
+    return () => {
+      socket.off('attendanceUpdate', handleAttendanceUpdate);
+    };
   }, []);
 
   const StatCard = ({ title, value, icon: Icon, color, trend }) => (

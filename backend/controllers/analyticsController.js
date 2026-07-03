@@ -128,7 +128,10 @@ const getMonthlyReport = async (req, res, next) => {
     const endDate = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
     // Get all active employees
-    const employees = await Employee.find({ isActive: true }).select('firstName lastName employeeId designation profilePicture');
+    const employees = await Employee.find({ isActive: true })
+      .select('firstName lastName employeeId designation profilePicture department shift')
+      .populate('department', 'name')
+      .populate('shift', 'name');
 
     // Get all attendance within the date range
     const attendanceRecords = await Attendance.find({
@@ -235,6 +238,8 @@ const getMonthlyReport = async (req, res, next) => {
         lastName: emp.lastName,
         employeeId: emp.employeeId,
         designation: emp.designation,
+        department: emp.department ? emp.department.name : null,
+        shift: emp.shift ? emp.shift.name : null,
         profilePicture: emp.profilePicture,
         presentDays,
         lateDays,

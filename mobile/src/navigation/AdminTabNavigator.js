@@ -10,6 +10,7 @@ import AdminLeavesScreen from '../screens/admin/AdminLeavesScreen';
 import AdminHolidaysScreen from '../screens/admin/AdminHolidaysScreen';
 import AdminMonthlyReportScreen from '../screens/admin/AdminMonthlyReportScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
+import AdminEmployeeDetailScreen from '../screens/admin/AdminEmployeeDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -29,6 +30,7 @@ const getIcon = (route, focused, color, size) => {
   } else if (route.name === 'AdminProfile') {
     Icon = focused ? UserSolid : UserIcon;
   }
+  if (!Icon) Icon = UserIcon;
   return <Icon color={color} size={size} />;
 };
 
@@ -39,6 +41,10 @@ const screens = [
   { name: 'AdminHolidays', component: AdminHolidaysScreen, label: 'Holidays' },
   { name: 'AdminMonthlyReport', component: AdminMonthlyReportScreen, label: 'Reports' },
   { name: 'AdminProfile', component: AdminProfileScreen, label: 'Profile' }
+];
+
+const hiddenScreens = [
+  { name: 'AdminEmployeeDetail', component: AdminEmployeeDetailScreen }
 ];
 
 const AdminTabNavigator = () => {
@@ -67,6 +73,14 @@ const AdminTabNavigator = () => {
             options={{ drawerLabel: screen.label }} 
           />
         ))}
+        {hiddenScreens.map(screen => (
+          <Drawer.Screen 
+            key={screen.name}
+            name={screen.name} 
+            component={screen.component} 
+            options={{ drawerItemStyle: { display: 'none' } }} 
+          />
+        ))}
       </Drawer.Navigator>
     );
   }
@@ -93,6 +107,14 @@ const AdminTabNavigator = () => {
           name={screen.name} 
           component={screen.component} 
           options={{ tabBarLabel: screen.label }} 
+        />
+      ))}
+      {hiddenScreens.map(screen => (
+        <Tab.Screen 
+          key={screen.name}
+          name={screen.name} 
+          component={screen.component} 
+          options={{ tabBarButton: () => null }} 
         />
       ))}
     </Tab.Navigator>

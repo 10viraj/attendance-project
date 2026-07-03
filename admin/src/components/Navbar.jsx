@@ -1,9 +1,11 @@
 import { Bell, Search, LogOut } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { logout } from '../redux/slices/authSlice';
 
 const Navbar = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { user, employee } = useSelector((state) => state.auth);
 
   return (
@@ -36,7 +38,11 @@ const Navbar = () => {
               {user?.role || 'Administrator'}
             </p>
           </div>
-          <div className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-primary-600 font-bold border border-primary-200 dark:border-primary-800 cursor-pointer">
+          <div 
+            onClick={() => navigate('/profile')}
+            className="w-9 h-9 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-primary-600 font-bold border border-primary-200 dark:border-primary-800 cursor-pointer hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors"
+            title="View Profile"
+          >
             {employee ? employee.firstName[0] : 'A'}
           </div>
 

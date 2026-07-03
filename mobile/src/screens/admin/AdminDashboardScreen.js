@@ -6,6 +6,7 @@ import { UsersIcon as UsersSolid, UserGroupIcon as UserGroupSolid } from 'react-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../../config/api';
+import socket from '../../config/socket';
 
 const { width } = Dimensions.get('window');
 
@@ -90,6 +91,18 @@ const AdminDashboardScreen = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       loadDashboardData();
+      
+      // Auto-refresh when someone checks in
+      const handleAttendanceUpdate = (data) => {
+        // We can show a small native alert if we want, but silently refreshing is cleaner for web/mobile
+        loadDashboardData();
+      };
+      
+      socket.on('attendanceUpdate', handleAttendanceUpdate);
+      
+      return () => {
+        socket.off('attendanceUpdate', handleAttendanceUpdate);
+      };
     }, [])
   );
 

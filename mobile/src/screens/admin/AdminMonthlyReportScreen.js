@@ -260,6 +260,18 @@ const AdminMonthlyReportScreen = ({ navigation }) => {
   // Web-only state
   const [searchQuery, setSearchQuery] = useState('');
 
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const d = new Date();
+    for (let i = 0; i < 12; i++) {
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      options.push({ label: `${MONTHS[m - 1]} ${y}`, month: m, year: y });
+      d.setMonth(d.getMonth() - 1);
+    }
+    return options;
+  }, []);
+
   const loadMonthlyReport = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -422,20 +434,57 @@ const AdminMonthlyReportScreen = ({ navigation }) => {
               </Text>
             </View>
             <View style={webStyles.headerControls}>
-              {/* Month Picker */}
+              {/* Month Picker Dropdown */}
               <View style={webStyles.monthPicker}>
-                <TouchableOpacity onPress={handlePrevMonth} style={webStyles.monthNavBtn} activeOpacity={0.7}>
-                  <ChevronLeftIcon color={W.inkMuted} size={16} />
-                </TouchableOpacity>
-                <Text style={webStyles.monthLabel}>{MONTHS[selectedMonth - 1]} {selectedYear}</Text>
-                <TouchableOpacity
-                  onPress={handleNextMonth}
-                  style={webStyles.monthNavBtn}
-                  disabled={isCurrentMonth}
-                  activeOpacity={0.7}
-                >
-                  <ChevronRightIcon color={isCurrentMonth ? W.border : W.inkMuted} size={16} />
-                </TouchableOpacity>
+                {Platform.OS === 'web' ? (
+                  <select
+                    value={`${selectedMonth}-${selectedYear}`}
+                    onChange={(e) => {
+                      const [m, y] = e.target.value.split('-');
+                      setSelectedMonth(parseInt(m));
+                      setSelectedYear(parseInt(y));
+                      setLoading(true);
+                      setExpandedEmpId(null);
+                    }}
+                    style={{
+                      padding: '8px 32px 8px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${W.border}`,
+                      backgroundColor: W.surface,
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: W.ink,
+                      outline: 'none',
+                      cursor: 'pointer',
+                      appearance: 'none',
+                      backgroundImage: `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236B7280%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px top 50%',
+                      backgroundSize: '10px auto',
+                    }}
+                  >
+                    {monthOptions.map((opt) => (
+                      <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <TouchableOpacity onPress={handlePrevMonth} style={webStyles.monthNavBtn} activeOpacity={0.7}>
+                      <ChevronLeftIcon color={W.inkMuted} size={16} />
+                    </TouchableOpacity>
+                    <Text style={webStyles.monthLabel}>{MONTHS[selectedMonth - 1]} {selectedYear}</Text>
+                    <TouchableOpacity
+                      onPress={handleNextMonth}
+                      style={webStyles.monthNavBtn}
+                      disabled={isCurrentMonth}
+                      activeOpacity={0.7}
+                    >
+                      <ChevronRightIcon color={isCurrentMonth ? W.border : W.inkMuted} size={16} />
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
               {/* Export */}
               <TouchableOpacity style={webStyles.exportBtn} onPress={handleExportCSV} activeOpacity={0.7}>

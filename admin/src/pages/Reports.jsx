@@ -89,6 +89,7 @@ const Reports = () => {
 
   const [loading, setLoading] = useState(true);
   const [expandedEmpId, setExpandedEmpId] = useState(null);
+  const [expandedDailyId, setExpandedDailyId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -526,6 +527,7 @@ const Reports = () => {
                   <th className="px-6 py-3.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Designation</th>
                   <th className="px-6 py-3.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Check-in Time</th>
+                  <th className="px-6 py-3.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Work Summary</th>
                 </tr>
               </thead>
               <tbody>
@@ -540,7 +542,7 @@ const Reports = () => {
                   </tr>
                 ) : filteredDaily.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="px-6 py-20 text-center">
+                    <td colSpan="5" className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                           <CalendarOff className="w-7 h-7 text-slate-300 dark:text-slate-600" />
@@ -562,46 +564,77 @@ const Reports = () => {
                         ? 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20'
                         : 'text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20';
 
+                    const isExpanded = expandedDailyId === record._id;
+
                     return (
-                      <tr
-                        key={index}
-                        className={`transition-colors duration-150 ${index % 2 === 0
-                            ? 'bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-dark-bg/40'
-                            : 'bg-slate-50/40 dark:bg-dark-bg/20 hover:bg-slate-100/60 dark:hover:bg-dark-bg/50'
-                          }`}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-primary-500/20">
-                              {record.employee?.firstName?.charAt(0)?.toUpperCase() || 'E'}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-slate-800 dark:text-white text-sm">
-                                {record.employee?.firstName} {record.employee?.lastName}
+                      <React.Fragment key={record._id || index}>
+                        <tr
+                          onClick={() => setExpandedDailyId(isExpanded ? null : record._id)}
+                          className={`cursor-pointer transition-colors duration-150 ${isExpanded
+                              ? 'bg-primary-50/60 dark:bg-primary-900/10'
+                              : index % 2 === 0
+                                ? 'bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-dark-bg/40'
+                                : 'bg-slate-50/40 dark:bg-dark-bg/20 hover:bg-slate-100/60 dark:hover:bg-dark-bg/50'
+                            }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3.5">
+                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white font-bold text-sm shadow-sm shadow-primary-500/20">
+                                {record.employee?.firstName?.charAt(0)?.toUpperCase() || 'E'}
                               </div>
-                              <div className="text-xs text-slate-400 mt-0.5">{record.employee?.employeeId}</div>
+                              <div>
+                                <div className="font-semibold text-slate-800 dark:text-white text-sm">
+                                  {record.employee?.firstName} {record.employee?.lastName}
+                                </div>
+                                <div className="text-xs text-slate-400 mt-0.5">{record.employee?.employeeId}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
-                          {record.employee?.designation || '—'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg ${statusStyle}`}>
-                            {record.displayStatus === 'Present' && <CheckCircle className="w-3.5 h-3.5" />}
-                            {record.displayStatus === 'Late' && <Clock className="w-3.5 h-3.5" />}
-                            {record.displayStatus === 'On Leave' && <CalendarOff className="w-3.5 h-3.5" />}
-                            {record.displayStatus}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                            {record.checkIn?.time
-                              ? new Date(record.checkIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                              : '—'}
-                          </span>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">
+                            {record.employee?.designation || '—'}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg ${statusStyle}`}>
+                              {record.displayStatus === 'Present' && <CheckCircle className="w-3.5 h-3.5" />}
+                              {record.displayStatus === 'Late' && <Clock className="w-3.5 h-3.5" />}
+                              {record.displayStatus === 'On Leave' && <CalendarOff className="w-3.5 h-3.5" />}
+                              {record.displayStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {record.checkIn?.time
+                                ? new Date(record.checkIn.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                : '—'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {record.workSummary ? (
+                               <div className="flex items-center gap-2 max-w-[200px]">
+                                 <span className="text-xs text-slate-500 truncate">{record.workSummary}</span>
+                                 <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                               </div>
+                            ) : (
+                               <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && record.workSummary && (
+                          <tr className="bg-slate-50/70 dark:bg-dark-bg/30">
+                            <td colSpan="5" className="px-6 py-5">
+                               <p className="text-sm text-slate-700 dark:text-slate-300">
+                                 <span className="font-semibold text-primary-600">AI Work Summary: </span>
+                                 {record.workSummary}
+                               </p>
+                               {record.workLog && (
+                                 <p className="text-xs text-slate-500 mt-2">
+                                   <span className="font-semibold text-slate-600 dark:text-slate-400">Raw notes: </span>{record.workLog}
+                                 </p>
+                               )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}

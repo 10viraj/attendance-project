@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Plus, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import api from '../services/api';
 
 const Employees = () => {
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,8 +28,8 @@ const Employees = () => {
     }
   };
 
-  const filtered = employees.filter(emp => 
-    emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const filtered = employees.filter(emp =>
+    emp.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -67,8 +69,10 @@ const Employees = () => {
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-dark-border text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <th className="px-6 py-4 font-medium">Employee</th>
-                <th className="px-6 py-4 font-medium">ID</th>
                 <th className="px-6 py-4 font-medium">Department</th>
+                <th className="px-6 py-4 font-medium">Position</th>
+                <th className="px-6 py-4 font-medium">Shift</th>
+                <th className="px-6 py-4 font-medium">Employee ID</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
@@ -76,15 +80,15 @@ const Employees = () => {
             <tbody className="divide-y divide-slate-200 dark:divide-dark-border">
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-8 text-center text-slate-500">Loading...</td>
+                  <td colSpan="7" className="px-6 py-8 text-center text-slate-500">Loading...</td>
                 </tr>
               ) : errorMsg ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-8 text-center text-red-500 font-medium">Error: {errorMsg}</td>
+                  <td colSpan="7" className="px-6 py-8 text-center text-red-500 font-medium">Error: {errorMsg}</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-8 text-center text-slate-500">No employees found.</td>
+                  <td colSpan="7" className="px-6 py-8 text-center text-slate-500">No employees found.</td>
                 </tr>
               ) : (
                 filtered.map((emp) => (
@@ -100,13 +104,21 @@ const Employees = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
-                      {emp.employeeId}
-                    </td>
                     <td className="px-6 py-4">
                       <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-xs font-medium">
                         {emp.department?.name || 'Unassigned'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
+                      {emp.designation || '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs font-medium border border-blue-200 dark:border-blue-800">
+                        {emp.shift?.name || 'Standard'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 font-medium">
+                      {emp.employeeId}
                     </td>
                     <td className="px-6 py-4">
                       {emp.isActive ? (
@@ -120,7 +132,11 @@ const Employees = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-slate-400 hover:text-primary-600 transition-colors">
+                      <button
+                        onClick={() => navigate(`/employees/${emp._id}`)}
+                        className="p-2 text-slate-400 hover:text-primary-600 transition-colors"
+                        title="Edit Profile"
+                      >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button className="p-2 text-slate-400 hover:text-rose-600 transition-colors ml-1">
@@ -133,7 +149,7 @@ const Employees = () => {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination mock */}
         <div className="p-4 border-t border-slate-200 dark:border-dark-border flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
           <button className="px-4 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-300" disabled>

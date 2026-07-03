@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { Toaster } from 'react-hot-toast';
 
 // Layouts
 import DashboardLayout from './layouts/DashboardLayout';
@@ -13,6 +14,8 @@ import Leaves from './pages/Leaves';
 import Holidays from './pages/Holidays';
 import Reports from './pages/Reports';
 import Announcements from './pages/Announcements';
+import Profile from './pages/Profile';
+import EmployeeProfile from './pages/EmployeeProfile';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -21,8 +24,10 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <Routes>
+    <>
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
+      <Router>
+        <Routes>
         <Route path="/login" element={<Login />} />
         
         <Route path="/" element={
@@ -33,13 +38,16 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="employees/:id" element={<EmployeeProfile />} />
           <Route path="leaves" element={<Leaves />} />
           <Route path="holidays" element={<Holidays />} />
           <Route path="reports" element={<Reports />} />
           <Route path="announcements" element={<Announcements />} />
+          <Route path="profile" element={<Profile />} />
         </Route>
       </Routes>
     </Router>
+    </>
   );
 }
 

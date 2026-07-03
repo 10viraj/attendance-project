@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, ScrollView, Platform, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ClockIcon, CalendarDaysIcon, ViewfinderCircleIcon, PaperAirplaneIcon, ArrowTrendingUpIcon, ArrowRightOnRectangleIcon } from 'react-native-heroicons/outline';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -39,6 +39,8 @@ const DashboardScreen = ({ navigation }) => {
   const [weeklyStats, setWeeklyStats] = useState({ present: '0', absent: '0', hours: '0h' });
   const [monthlyStats, setMonthlyStats] = useState({ present: '0', absent: '0', hours: '0h' });
   const [statsView, setStatsView] = useState('Weekly'); // 'Weekly' or 'Monthly'
+  const [shiftName, setShiftName] = useState('');
+  const [shiftTime, setShiftTime] = useState('');
   
   const [currentTime, setCurrentTime] = useState(new Date());
   
@@ -48,6 +50,9 @@ const DashboardScreen = ({ navigation }) => {
   const [checkOutDateObj, setCheckOutDateObj] = useState(null);
 
   const [biometricType, setBiometricType] = useState('Face'); // default
+  
+  const [showWorkLogModal, setShowWorkLogModal] = useState(false);
+  const [workLog, setWorkLog] = useState('');
 
   // Check supported biometric type for UI
   useEffect(() => {
@@ -135,6 +140,9 @@ const DashboardScreen = ({ navigation }) => {
               return `${(h + m/60).toFixed(1)}h`;
             };
 
+            if (statsRes.data.data.shiftName) setShiftName(statsRes.data.data.shiftName);
+            if (statsRes.data.data.shiftTime) setShiftTime(statsRes.data.data.shiftTime);
+
             if (statsRes.data.data.weekly) {
               const w = statsRes.data.data.weekly;
               setWeeklyStats({
@@ -185,6 +193,11 @@ const DashboardScreen = ({ navigation }) => {
       return;
     }
 
+    if (actionType === 'check-out' && !showWorkLogModal) {
+      setShowWorkLogModal(true);
+      return;
+    }
+
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       if (!hasHardware) {
@@ -227,7 +240,8 @@ const DashboardScreen = ({ navigation }) => {
       const payload = {
         employeeId,
         location: { latitude: 28.6139, longitude: 77.2090 }, // Mock location
-        verificationMethod: biometricType === 'Manual' ? 'Manual' : biometricType
+        verificationMethod: biometricType === 'Manual' ? 'Manual' : biometricType,
+        workLog: action === 'check-out' ? workLog : undefined
       };
 
       const netState = await NetInfo.fetch();
@@ -351,7 +365,10 @@ const DashboardScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.clockContainer}>
-              <Text style={styles.shiftLabel}>{clockLabel}</Text>
+              <Text style={styles.shiftLabel}>
+                {clockLabel}
+                {clockLabel === "Today's Shift" && shiftName ? ` • ${shiftName} (${shiftTime})` : ''}
+              </Text>
               <Text style={styles.liveClock}>{clockDisplay}</Text>
             </View>
 
@@ -462,6 +479,36 @@ const DashboardScreen = ({ navigation }) => {
 
         </ScrollView>
       </SafeAreaView>
+
+      {/* Work Log Modal */}
+      <Modal visible={showWorkLogModal} animationType="slide" transparent={true} onRequestClose={() => setShowWorkLogModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Daily Work Summary</Text>
+            <Text style={styles.modalSubtitle}>Briefly list what you worked on today.</Text>
+            
+            <TextInput
+              style={styles.workLogInput}
+              multiline
+              numberOfLines={4}
+              placeholder="E.g., Fixed login bug, team meeting..."
+              placeholderTextColor="#9CA3AF"
+              value={workLog}
+              onChangeText={setWorkLog}
+              textAlignVertical="top"
+            />
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalButtonCancel} onPress={() => setShowWorkLogModal(false)}>
+                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalButtonSubmit} onPress={() => authenticateAndAction('check-out')}>
+                <Text style={styles.modalButtonSubmitText}>Check Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -710,6 +757,70 @@ const styles = StyleSheet.create({
   },
   statsFilterChipTextActive: {
     color: '#0F172A',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 20,
+  },
+  workLogInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    color: '#0F172A',
+    minHeight: 100,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButtonCancel: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    marginRight: 10,
+    alignItems: 'center',
+  },
+  modalButtonCancelText: {
+    color: '#64748B',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonSubmit: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#9B2C2C', // Red for check out
+    marginLeft: 10,
+    alignItems: 'center',
+  },
+  modalButtonSubmitText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

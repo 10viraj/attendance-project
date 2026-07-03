@@ -247,6 +247,7 @@ const AdminEmployeesScreen = ({ navigation }) => {
                 <Text style={[w.tableHeaderCell, { flex: 2.2 }]}>Employee</Text>
                 <Text style={[w.tableHeaderCell, { flex: 1.2 }]}>Department</Text>
                 <Text style={[w.tableHeaderCell, { flex: 1 }]}>Position</Text>
+                <Text style={[w.tableHeaderCell, { flex: 1 }]}>Shift</Text>
                 <Text style={[w.tableHeaderCell, { flex: 1 }]}>Employee ID</Text>
                 <Text style={[w.tableHeaderCell, { flex: 0.8 }]}>Status</Text>
                 <Text style={[w.tableHeaderCell, { flex: 0.8, textAlign: 'center' }]}>Actions</Text>
@@ -288,6 +289,13 @@ const AdminEmployeesScreen = ({ navigation }) => {
                     <Text style={[w.tableCell, w.tableCellText, { flex: 1 }]}>
                       {emp.designation || emp.position || '—'}
                     </Text>
+
+                    {/* Shift */}
+                    <View style={[w.tableCell, { flex: 1 }]}>
+                      <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#4F46E5' }}>{emp.shift?.name || 'Standard'}</Text>
+                      </View>
+                    </View>
 
                     {/* ID */}
                     <View style={[w.tableCell, { flex: 1 }]}>
@@ -375,6 +383,10 @@ const AdminEmployeesScreen = ({ navigation }) => {
                       <View style={w.gridMetaItem}>
                         <Text style={w.gridMetaLabel}>Department</Text>
                         <Text style={w.gridMetaValue} numberOfLines={1}>{emp.department?.name || '—'}</Text>
+                      </View>
+                      <View style={w.gridMetaItem}>
+                        <Text style={w.gridMetaLabel}>Shift</Text>
+                        <Text style={w.gridMetaValue} numberOfLines={1}>{emp.shift?.name || 'Standard'}</Text>
                       </View>
                     </View>
 

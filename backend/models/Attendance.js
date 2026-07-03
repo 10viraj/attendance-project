@@ -77,6 +77,14 @@ const attendanceSchema = new mongoose.Schema({
     type: String,
     enum: ['Office', 'WFH', 'Client Site'],
     default: 'Office'
+  },
+  workLog: {
+    type: String,
+    default: ''
+  },
+  workSummary: {
+    type: String,
+    default: ''
   }
 }, { timestamps: true });
 

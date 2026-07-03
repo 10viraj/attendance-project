@@ -109,6 +109,15 @@ const updateEmployee = async (req, res, next) => {
       throw new Error('Employee not found');
     }
 
+    // Update password if provided
+    if (req.body.password && employee.user) {
+      const user = await User.findById(employee.user);
+      if (user) {
+        user.password = req.body.password;
+        await user.save();
+      }
+    }
+
     res.json({ success: true, data: employee });
   } catch (error) {
     next(error);

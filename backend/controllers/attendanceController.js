@@ -2,6 +2,7 @@ const Attendance = require('../models/Attendance');
 const Employee = require('../models/Employee');
 const Shift = require('../models/Shift');
 const { getIo } = require('../config/socket');
+const { getAiSummary } = require('../services/aiService');
 
 // Helper to calculate hours
 const getDifferenceInHours = (start, end) => {
@@ -88,7 +89,7 @@ const checkIn = async (req, res, next) => {
 // @access  Private
 const checkOut = async (req, res, next) => {
   try {
-    const { employeeId, location, verificationMethod } = req.body;
+    const { employeeId, location, verificationMethod, workLog } = req.body;
 
     const employee = await Employee.findOne({ employeeId }).populate('shift');
     if (!employee) {
@@ -159,6 +160,13 @@ const checkOut = async (req, res, next) => {
         }
       }
     }
+
+    // Generate AI Work Summary
+    const hoursWorkedFormatted = workedHours.toFixed(1);
+    const aiSummary = await getAiSummary(workLog, hoursWorkedFormatted);
+
+    if (workLog) attendance.workLog = workLog;
+    attendance.workSummary = aiSummary;
 
     await attendance.save();
 
@@ -326,13 +334,42 @@ const getHistory = async (req, res, next) => {
       throw new Error('Employee profile not found');
     }
 
-    const history = await Attendance.find({ employee: employee._id })
+    const records = await Attendance.find({ employee: employee._id })
       .sort({ date: -1 })
-      .limit(30); // Return last 30 days for performance
+      .limit(30);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const fullHistory = [];
+    
+    const recordsMap = {};
+    records.forEach(r => {
+      const d = new Date(r.date);
+      d.setHours(0,0,0,0);
+      recordsMap[d.getTime()] = r;
+    });
+
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const timeKey = d.getTime();
+      
+      if (recordsMap[timeKey]) {
+        fullHistory.push(recordsMap[timeKey]);
+      } else {
+        if (d.getDay() !== 0 && d.getDay() !== 6) {
+          fullHistory.push({
+            _id: 'absent_' + timeKey,
+            date: d,
+            status: 'Absent'
+          });
+        }
+      }
+    }
 
     res.json({
       success: true,
-      data: history
+      data: fullHistory
     });
   } catch (error) {
     next(error);
@@ -344,13 +381,72 @@ const getHistory = async (req, res, next) => {
 // @access  Private/Admin
 const getEmployeeHistory = async (req, res, next) => {
   try {
-    const history = await Attendance.find({ employee: req.params.employeeId })
-      .sort({ date: -1 })
-      .limit(30);
+    const { month, year } = req.query;
+    
+    let startDate, endDate, daysInMonth;
+    
+    if (month && year) {
+      // Month is 1-indexed in query, so subtract 1 for Date object
+      startDate = new Date(year, month - 1, 1);
+      endDate = new Date(year, month, 0); // Last day of the month
+      endDate.setHours(23, 59, 59, 999);
+      daysInMonth = endDate.getDate();
+    } else {
+      // Default to last 30 days if no month/year provided
+      endDate = new Date();
+      endDate.setHours(23, 59, 59, 999);
+      startDate = new Date();
+      startDate.setDate(startDate.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      daysInMonth = 30;
+    }
+
+    const records = await Attendance.find({ 
+      employee: req.params.employeeId,
+      date: { $gte: startDate, $lte: endDate }
+    }).sort({ date: -1 });
+
+    const fullHistory = [];
+    const recordsMap = {};
+    records.forEach(r => {
+      const d = new Date(r.date);
+      d.setHours(0,0,0,0);
+      recordsMap[d.getTime()] = r;
+    });
+
+    const endDayIter = new Date(endDate);
+    endDayIter.setHours(0, 0, 0, 0);
+    
+    const currentToday = new Date();
+    currentToday.setHours(23, 59, 59, 999);
+
+    for (let i = 0; i < daysInMonth; i++) {
+      const d = new Date(endDayIter);
+      d.setDate(endDayIter.getDate() - i);
+      
+      // Stop if the date goes before startDate
+      if (d < startDate) break;
+      // Skip if the date is in the future
+      if (d > currentToday) continue;
+
+      const timeKey = d.getTime();
+      
+      if (recordsMap[timeKey]) {
+        fullHistory.push(recordsMap[timeKey]);
+      } else {
+        if (d.getDay() !== 0 && d.getDay() !== 6) {
+          fullHistory.push({
+            _id: 'absent_' + timeKey,
+            date: d,
+            status: 'Absent'
+          });
+        }
+      }
+    }
 
     res.json({
       success: true,
-      data: history
+      data: fullHistory
     });
   } catch (error) {
     next(error);

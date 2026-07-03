@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 240,
+    height: 300,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   userRole: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#94a3b8', // slate-400
+    color: '#e2e8f0', // slate-200 for better contrast on blue background
   },
   card: {
     backgroundColor: '#ffffff',
