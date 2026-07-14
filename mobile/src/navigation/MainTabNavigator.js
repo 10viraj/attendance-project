@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { HomeIcon, UserIcon, CalendarDaysIcon, PaperAirplaneIcon } from 'react-native-heroicons/outline';
 import { HomeIcon as HomeSolid, UserIcon as UserSolid, CalendarDaysIcon as CalendarDaysSolid, PaperAirplaneIcon as PaperAirplaneSolid } from 'react-native-heroicons/solid';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import DashboardScreen from '../screens/DashboardScreen';
 import HolidayScreen from '../screens/HolidayScreen';
@@ -34,6 +35,8 @@ const screens = [
 ];
 
 const MainTabNavigator = () => {
+  const insets = useSafeAreaInsets();
+
   if (Platform.OS === 'web') {
     return (
       <Drawer.Navigator
@@ -73,11 +76,16 @@ const MainTabNavigator = () => {
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: '#F1F5F9', 
-          paddingBottom: 5,
           paddingTop: 5,
-          height: 60,
           backgroundColor: '#ffffff'
         },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          paddingBottom: 5,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 5,
+        }
       })}
     >
       {screens.map(screen => (

@@ -307,15 +307,6 @@ const LoginScreen = ({ navigation }) => {
                 <ChevronRightIcon size={20} color="#64748B" />
               )}
             </TouchableOpacity>
-
-            {/* Sign Up Link */}
-            <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.footerLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
-
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

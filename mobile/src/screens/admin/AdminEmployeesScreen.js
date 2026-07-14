@@ -10,8 +10,11 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   MagnifyingGlassIcon,
   UserCircleIcon,
@@ -20,33 +23,36 @@ import {
   BuildingOffice2Icon,
   EnvelopeIcon,
   TrashIcon,
+  XMarkIcon,
+  PlusIcon,
 } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { format } from 'date-fns';
 import api from '../../config/api';
 
 /* ───────────────────────────────────────── */
 /*  Web palette                              */
 /* ───────────────────────────────────────── */
 const C = {
-  bg:          '#F7F8FA',
-  surface:     '#FFFFFF',
-  surfaceAlt:  '#FAFBFC',
-  border:      '#EAEDF2',
-  borderSoft:  '#F1F3F6',
-  ink:         '#111827',
-  inkSub:      '#374151',
-  inkMuted:    '#6B7280',
-  inkFaint:    '#9CA3AF',
-  accent:      '#4F46E5',
-  accentSoft:  '#EEF2FF',
-  accentText:  '#3730A3',
-  green:       '#059669',
-  greenSoft:   '#ECFDF5',
-  greenText:   '#065F46',
-  red:         '#DC2626',
-  redSoft:     '#FEF2F2',
-  redText:     '#991B1B',
+  bg: '#F7F8FA',
+  surface: '#FFFFFF',
+  surfaceAlt: '#FAFBFC',
+  border: '#EAEDF2',
+  borderSoft: '#F1F3F6',
+  ink: '#111827',
+  inkSub: '#374151',
+  inkMuted: '#6B7280',
+  inkFaint: '#9CA3AF',
+  accent: '#4F46E5',
+  accentSoft: '#EEF2FF',
+  accentText: '#3730A3',
+  green: '#059669',
+  greenSoft: '#ECFDF5',
+  greenText: '#065F46',
+  red: '#DC2626',
+  redSoft: '#FEF2F2',
+  redText: '#991B1B',
 };
 
 const AdminEmployeesScreen = ({ navigation }) => {
@@ -54,12 +60,24 @@ const AdminEmployeesScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Add Employee Modal State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [department, setDepartment] = useState('');
+  const [dateOfJoining, setDateOfJoining] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [departments, setDepartments] = useState([]);
+
   // Web-only state
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
 
   const handleDeleteEmployee = (id, firstName, lastName) => {
     const confirmMessage = `Are you sure you want to completely remove ${firstName} ${lastName}? This action cannot be undone.`;
-    
+
     const performDelete = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
@@ -123,6 +141,23 @@ const AdminEmployeesScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchEmployees();
+    const fetchDepartments = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          const res = await api.get('/departments', { headers: { Authorization: `Bearer ${token}` } });
+          if (res.data?.success) {
+            setDepartments(res.data.data);
+            if (res.data.data.length > 0) {
+              setDepartment(res.data.data[0]._id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+    fetchDepartments();
     const unsubscribe = navigation.addListener('focus', () => {
       fetchEmployees();
     });
@@ -131,6 +166,13 @@ const AdminEmployeesScreen = ({ navigation }) => {
 
   const handleSearch = () => {
     fetchEmployees(searchQuery);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    if (Platform.OS !== 'web') {
+      fetchEmployees('');
+    }
   };
 
   /* ── Filtered data (web uses local filter for instant results) ── */
@@ -152,6 +194,200 @@ const AdminEmployeesScreen = ({ navigation }) => {
     return { total: employees.length, active, depts };
   }, [employees]);
 
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setFirstName('');
+    setLastName('');
+    setEmail('');
+    setPassword('');
+    if (departments.length > 0) {
+      setDepartment(departments[0]._id);
+    }
+    setDateOfJoining(new Date());
+  };
+
+  const handleAddEmployee = async () => {
+    if (!firstName || !lastName || !email || !password) {
+      if (Platform.OS === 'web') alert('Please fill in all required fields');
+      else Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await api.post('/auth/register', {
+        firstName: firstName.trim(), 
+        lastName: lastName.trim(), 
+        email: email.trim(), 
+        password: password.trim(), 
+        department, 
+        role: 'Employee'
+      });
+      if (res.data.success) {
+        if (Platform.OS === 'web') alert('Employee created successfully');
+        else Alert.alert('Success', 'Employee created successfully');
+        closeModal();
+        fetchEmployees();
+      }
+    } catch (error) {
+      const errMsg = error.response?.data?.message || 'Failed to create employee';
+      if (Platform.OS === 'web') alert(errMsg);
+      else Alert.alert('Error', errMsg);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const renderAddModal = () => (
+    <Modal
+      visible={modalVisible}
+      animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+      transparent={true}
+      onRequestClose={closeModal}
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={Platform.OS === 'web' ? w.modalOverlay : styles.modalOverlay}>
+          <View style={Platform.OS === 'web' ? w.modalContainer : styles.modalContainer}>
+            <View style={Platform.OS === 'web' ? w.modalHeader : styles.modalHeader}>
+              <Text style={Platform.OS === 'web' ? w.modalTitle : styles.modalTitle}>
+                Add New Employee
+              </Text>
+              <TouchableOpacity onPress={closeModal} accessibilityRole="button" accessibilityLabel="Close">
+                <XMarkIcon color={C.inkMuted} size={24} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              style={Platform.OS === 'web' ? w.formContainer : styles.formContainer}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>First Name *</Text>
+              <TextInput
+                style={Platform.OS === 'web' ? w.input : styles.input}
+                placeholder="John"
+                placeholderTextColor={C.inkFaint}
+                value={firstName}
+                onChangeText={setFirstName}
+                returnKeyType="next"
+              />
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Last Name *</Text>
+              <TextInput
+                style={Platform.OS === 'web' ? w.input : styles.input}
+                placeholder="Doe"
+                placeholderTextColor={C.inkFaint}
+                value={lastName}
+                onChangeText={setLastName}
+                returnKeyType="next"
+              />
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Email *</Text>
+              <TextInput
+                style={Platform.OS === 'web' ? w.input : styles.input}
+                placeholder="john.doe@example.com"
+                placeholderTextColor={C.inkFaint}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                returnKeyType="next"
+              />
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Password *</Text>
+              <TextInput
+                style={Platform.OS === 'web' ? w.input : styles.input}
+                placeholder="******"
+                placeholderTextColor={C.inkFaint}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                returnKeyType="done"
+              />
+              
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Joining Date</Text>
+              {Platform.OS === 'web' ? (
+                <TextInput
+                  style={w.input}
+                  type="date"
+                  value={dateOfJoining.toISOString().split('T')[0]}
+                  onChange={(e) => setDateOfJoining(new Date(e.target.value))}
+                />
+              ) : (
+                <>
+                  <TouchableOpacity
+                    style={styles.input}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text style={{ color: C.ink }}>
+                      {format(dateOfJoining, 'MMM dd, yyyy')}
+                    </Text>
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={dateOfJoining}
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(Platform.OS === 'ios');
+                        if (selectedDate) setDateOfJoining(selectedDate);
+                      }}
+                    />
+                  )}
+                </>
+              )}
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Department</Text>
+              {departments.length === 0 ? (
+                <Text style={Platform.OS === 'web' ? w.helperText : styles.helperText}>
+                  No departments yet — you can assign one later.
+                </Text>
+              ) : (
+                <View style={Platform.OS === 'web' ? w.typeSelector : styles.typeSelector}>
+                  {departments.map(dept => {
+                    const isActive = department === dept._id;
+                    return (
+                      <TouchableOpacity
+                        key={dept._id}
+                        style={[
+                          Platform.OS === 'web' ? w.typeOption : styles.typeOption,
+                          isActive && (Platform.OS === 'web' ? w.typeOptionActive : styles.typeOptionActive)
+                        ]}
+                        onPress={() => setDepartment(dept._id)}
+                      >
+                        <Text style={[
+                          Platform.OS === 'web' ? w.typeOptionText : styles.typeOptionText,
+                          isActive && (Platform.OS === 'web' ? w.typeOptionTextActive : styles.typeOptionTextActive)
+                        ]}>
+                          {dept.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+              <TouchableOpacity
+                style={[
+                  Platform.OS === 'web' ? w.submitBtn : styles.submitButton,
+                  adding && { opacity: 0.7 },
+                ]}
+                onPress={handleAddEmployee}
+                disabled={adding}
+                activeOpacity={0.85}
+              >
+                {adding ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={Platform.OS === 'web' ? w.submitBtnText : styles.submitButtonText}>Create Employee</Text>
+                )}
+              </TouchableOpacity>
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
   /* ═══════════════════════════════════════════ */
   /*  WEB RENDER                                 */
   /* ═══════════════════════════════════════════ */
@@ -165,15 +401,22 @@ const AdminEmployeesScreen = ({ navigation }) => {
               <Text style={w.pageTitle}>Staff Directory</Text>
               <Text style={w.pageSubtitle}>Manage and view all employee information</Text>
             </View>
+            <TouchableOpacity
+              style={w.addBtn}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={w.addBtnText}>+ Add Employee</Text>
+            </TouchableOpacity>
           </View>
 
           {/* ── Summary Cards ── */}
           {!loading && (
             <View style={w.summaryRow}>
               {[
-                { label: 'Total Employees', value: stats.total,  Icon: UsersIcon,            color: C.accent, bg: C.accentSoft },
-                { label: 'Active',           value: stats.active, Icon: UserCircleIcon,       color: C.green,  bg: C.greenSoft },
-                { label: 'Departments',      value: stats.depts,  Icon: BuildingOffice2Icon,  color: C.inkSub, bg: C.surfaceAlt },
+                { label: 'Total Employees', value: stats.total, Icon: UsersIcon, color: C.accent, bg: C.accentSoft },
+                { label: 'Active', value: stats.active, Icon: UserCircleIcon, color: C.green, bg: C.greenSoft },
+                { label: 'Departments', value: stats.depts, Icon: BuildingOffice2Icon, color: C.inkSub, bg: C.surfaceAlt },
               ].map((c, i) => (
                 <View key={i} style={w.summaryCard}>
                   <View style={[w.summaryIcon, { backgroundColor: c.bg }]}>
@@ -200,6 +443,11 @@ const AdminEmployeesScreen = ({ navigation }) => {
                 onChangeText={setSearchQuery}
                 onSubmitEditing={handleSearch}
               />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={clearSearch} accessibilityRole="button" accessibilityLabel="Clear search">
+                  <XMarkIcon color={C.inkFaint} size={15} />
+                </TouchableOpacity>
+              )}
             </View>
             <View style={w.toolbarRight}>
               <View style={w.viewToggle}>
@@ -239,6 +487,11 @@ const AdminEmployeesScreen = ({ navigation }) => {
               <Text style={w.emptySubtitle}>
                 {searchQuery ? 'Try a different search term.' : 'Employees will appear here once added.'}
               </Text>
+              {!searchQuery && (
+                <TouchableOpacity style={[w.addBtn, { marginTop: 18 }]} onPress={() => setModalVisible(true)}>
+                  <Text style={w.addBtnText}>+ Add Employee</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : viewMode === 'table' ? (
             /* ── TABLE VIEW ── */
@@ -292,8 +545,8 @@ const AdminEmployeesScreen = ({ navigation }) => {
 
                     {/* Shift */}
                     <View style={[w.tableCell, { flex: 1 }]}>
-                      <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#4F46E5' }}>{emp.shift?.name || 'Standard'}</Text>
+                      <View style={w.shiftBadge}>
+                        <Text style={w.shiftBadgeText}>{emp.shift?.name || 'Standard'}</Text>
                       </View>
                     </View>
 
@@ -415,6 +668,7 @@ const AdminEmployeesScreen = ({ navigation }) => {
             </View>
           )}
         </ScrollView>
+        {renderAddModal()}
       </SafeAreaView>
     );
   }
@@ -423,14 +677,14 @@ const AdminEmployeesScreen = ({ navigation }) => {
   /*  MOBILE RENDER (preserved)                  */
   /* ═══════════════════════════════════════════ */
   const renderItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.employeeCard} 
+    <TouchableOpacity
+      style={styles.employeeCard}
       activeOpacity={0.7}
       onPress={() => navigation.navigate('AdminEmployeeDetail', { employee: item })}
     >
       <View style={styles.avatarContainer}>
         {item.profileImage ? (
-          <UserCircleIcon color="#94a3b8" size={50} /> // Placeholder for image
+          <UserCircleIcon color="#94a3b8" size={50} />
         ) : (
           <View style={styles.initialsAvatar}>
             <Text style={styles.initialsText}>
@@ -440,11 +694,11 @@ const AdminEmployeesScreen = ({ navigation }) => {
         )}
       </View>
       <View style={styles.employeeInfo}>
-        <Text style={styles.employeeName}>{item.firstName} {item.lastName}</Text>
-        <Text style={styles.employeeRole}>{item.department?.name || 'No Department'} • {item.designation || item.position || 'Staff'}</Text>
+        <Text style={styles.employeeName} numberOfLines={1}>{item.firstName} {item.lastName}</Text>
+        <Text style={styles.employeeRole} numberOfLines={1}>{item.department?.name || 'No Department'} • {item.designation || item.position || 'Staff'}</Text>
         <Text style={styles.employeeId}>ID: {item.employeeId}</Text>
       </View>
-      <View style={[styles.arrowContainer, { flexDirection: 'row', alignItems: 'center', gap: 12 }]}>
+      <View style={styles.arrowContainer}>
         <TouchableOpacity
           onPress={(e) => {
             e.stopPropagation();
@@ -465,8 +719,17 @@ const AdminEmployeesScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Staff Directory</Text>
-        
+        <View style={styles.headerTopRow}>
+          <Text style={[styles.headerTitle, { marginBottom: 0 }]}>Staff Directory</Text>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => setModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.addBtnText}>+ Add Employee</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.searchContainer}>
           <MagnifyingGlassIcon color="#94a3b8" size={20} style={styles.searchIcon} />
           <TextInput
@@ -478,6 +741,11 @@ const AdminEmployeesScreen = ({ navigation }) => {
             onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={clearSearch} accessibilityRole="button" accessibilityLabel="Clear search" style={{ padding: 4 }}>
+              <XMarkIcon color="#94a3b8" size={18} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -487,18 +755,22 @@ const AdminEmployeesScreen = ({ navigation }) => {
         </View>
       ) : (
         <FlatList
-          data={employees}
+          data={filteredEmployees}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No employees found.</Text>
+              <UsersIcon color="#cbd5e1" size={44} />
+              <Text style={styles.emptyText}>
+                {searchQuery ? `No results for "${searchQuery}"` : 'No employees found.'}
+              </Text>
             </View>
           }
         />
       )}
+      {renderAddModal()}
     </SafeAreaView>
   );
 };
@@ -519,11 +791,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#0f172a',
     marginBottom: 16,
+  },
+  addBtn: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -543,6 +832,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 20,
+    flexGrow: 1,
   },
   employeeCard: {
     flexDirection: 'row',
@@ -595,6 +885,9 @@ const styles = StyleSheet.create({
   },
   arrowContainer: {
     paddingLeft: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   centered: {
     flex: 1,
@@ -604,11 +897,104 @@ const styles = StyleSheet.create({
   emptyContainer: {
     padding: 40,
     alignItems: 'center',
+    gap: 12,
   },
   emptyText: {
     color: '#64748b',
-    fontSize: 16,
+    fontSize: 15,
+    textAlign: 'center',
   },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  formContainer: {
+    flexGrow: 0,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  helperText: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+  },
+  input: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  typeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  typeOptionActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#2563eb',
+  },
+  typeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  typeOptionTextActive: {
+    color: '#2563eb',
+  },
+  submitButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 32,
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  }
 });
 
 /* ═══════════════════════════════════════════ */
@@ -644,6 +1030,17 @@ const w = StyleSheet.create({
   pageSubtitle: {
     fontSize: 14,
     color: C.inkMuted,
+  },
+  addBtn: {
+    backgroundColor: C.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  addBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
 
   /* ── Summary Cards ── */
@@ -867,6 +1264,18 @@ const w = StyleSheet.create({
     color: C.inkFaint,
     marginTop: 1,
   },
+  shiftBadge: {
+    backgroundColor: C.accentSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  shiftBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: C.accent,
+  },
   tableIdBadge: {
     fontSize: 12,
     fontWeight: '600',
@@ -1008,13 +1417,109 @@ const w = StyleSheet.create({
   gridFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'space-between',
+    width: '100%',
   },
   gridFooterLink: {
     fontSize: 13,
     fontWeight: '700',
     color: C.accent,
   },
+  // Web Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 32,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: C.ink,
+  },
+  formContainer: {
+    flexGrow: 0,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.inkSub,
+    marginBottom: 6,
+    marginTop: 16,
+  },
+  helperText: {
+    fontSize: 13,
+    color: C.inkFaint,
+    fontStyle: 'italic',
+  },
+  input: {
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: C.ink,
+    outlineStyle: 'none',
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  typeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: C.surfaceAlt,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  typeOptionActive: {
+    backgroundColor: C.accentSoft,
+    borderColor: C.accent,
+  },
+  typeOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.inkMuted,
+  },
+  typeOptionTextActive: {
+    color: C.accent,
+  },
+  submitBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  submitBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  }
 });
 
 export default AdminEmployeesScreen;

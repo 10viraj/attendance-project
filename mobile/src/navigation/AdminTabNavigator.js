@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { HomeIcon, UsersIcon, UserIcon, CalendarDaysIcon, CalendarIcon, ChartBarIcon, ClockIcon } from 'react-native-heroicons/outline';
 import { HomeIcon as HomeSolid, UsersIcon as UsersSolid, UserIcon as UserSolid, CalendarDaysIcon as CalendarDaysSolid, CalendarIcon as CalendarSolid, ChartBarIcon as ChartBarSolid } from 'react-native-heroicons/solid';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import AdminEmployeesScreen from '../screens/admin/AdminEmployeesScreen';
@@ -53,6 +54,8 @@ const hiddenScreens = [
 ];
 
 const AdminTabNavigator = () => {
+  const insets = useSafeAreaInsets();
+
   if (Platform.OS === 'web') {
     return (
       <Drawer.Navigator
@@ -71,19 +74,19 @@ const AdminTabNavigator = () => {
         })}
       >
         {screens.map(screen => (
-          <Drawer.Screen 
+          <Drawer.Screen
             key={screen.name}
-            name={screen.name} 
-            component={screen.component} 
-            options={{ drawerLabel: screen.label }} 
+            name={screen.name}
+            component={screen.component}
+            options={{ drawerLabel: screen.label }}
           />
         ))}
         {hiddenScreens.map(screen => (
-          <Drawer.Screen 
+          <Drawer.Screen
             key={screen.name}
-            name={screen.name} 
-            component={screen.component} 
-            options={{ drawerItemStyle: { display: 'none' } }} 
+            name={screen.name}
+            component={screen.component}
+            options={{ drawerItemStyle: { display: 'none' } }}
           />
         ))}
       </Drawer.Navigator>
@@ -100,26 +103,31 @@ const AdminTabNavigator = () => {
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: '#e2e8f0', // slate-200
-          paddingBottom: 5,
           paddingTop: 5,
-          height: 60,
         },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          paddingBottom: 5,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 5,
+        }
       })}
     >
       {screens.map(screen => (
-        <Tab.Screen 
+        <Tab.Screen
           key={screen.name}
-          name={screen.name} 
-          component={screen.component} 
-          options={{ tabBarLabel: screen.label }} 
+          name={screen.name}
+          component={screen.component}
+          options={{ tabBarLabel: screen.label }}
         />
       ))}
       {hiddenScreens.map(screen => (
-        <Tab.Screen 
+        <Tab.Screen
           key={screen.name}
-          name={screen.name} 
-          component={screen.component} 
-          options={{ tabBarButton: () => null }} 
+          name={screen.name}
+          component={screen.component}
+          options={{ tabBarButton: () => null }}
         />
       ))}
     </Tab.Navigator>
