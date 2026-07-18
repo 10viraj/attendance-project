@@ -12,8 +12,12 @@ import AdminHolidaysScreen from '../screens/admin/AdminHolidaysScreen';
 import AdminMonthlyReportScreen from '../screens/admin/AdminMonthlyReportScreen';
 import AdminProfileScreen from '../screens/admin/AdminProfileScreen';
 import AdminEmployeeDetailScreen from '../screens/admin/AdminEmployeeDetailScreen';
+import AdminDepartmentsScreen from '../screens/admin/AdminDepartmentsScreen';
+import AdminCompanyScreen from '../screens/admin/AdminCompanyScreen';
 import AdminShiftsScreen from '../screens/admin/AdminShiftsScreen';
-import { ClockIcon as ClockSolid } from 'react-native-heroicons/solid';
+import AdminOrganizationScreen from '../screens/admin/AdminOrganizationScreen';
+import { ClockIcon as ClockSolid, BriefcaseIcon as BriefcaseSolid } from 'react-native-heroicons/solid';
+import { BriefcaseIcon } from 'react-native-heroicons/outline';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -30,6 +34,8 @@ const getIcon = (route, focused, color, size) => {
     Icon = focused ? CalendarSolid : CalendarIcon;
   } else if (route.name === 'AdminShifts') {
     Icon = focused ? ClockSolid : ClockIcon;
+  } else if (route.name === 'AdminOrganization') {
+    Icon = focused ? BriefcaseSolid : BriefcaseIcon;
   } else if (route.name === 'AdminMonthlyReport') {
     Icon = focused ? ChartBarSolid : ChartBarIcon;
   } else if (route.name === 'AdminProfile') {
@@ -45,12 +51,15 @@ const screens = [
   { name: 'AdminLeaves', component: AdminLeavesScreen, label: 'Leaves' },
   { name: 'AdminHolidays', component: AdminHolidaysScreen, label: 'Holidays' },
   { name: 'AdminShifts', component: AdminShiftsScreen, label: 'Shifts' },
+  { name: 'AdminOrganization', component: AdminOrganizationScreen, label: 'Organization' },
   { name: 'AdminMonthlyReport', component: AdminMonthlyReportScreen, label: 'Reports' },
   { name: 'AdminProfile', component: AdminProfileScreen, label: 'Profile' }
 ];
 
 const hiddenScreens = [
-  { name: 'AdminEmployeeDetail', component: AdminEmployeeDetailScreen }
+  { name: 'AdminEmployeeDetail', component: AdminEmployeeDetailScreen },
+  { name: 'AdminDepartments', component: AdminDepartmentsScreen },
+  { name: 'AdminCompany', component: AdminCompanyScreen }
 ];
 
 const AdminTabNavigator = () => {

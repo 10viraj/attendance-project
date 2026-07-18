@@ -679,15 +679,39 @@ const LeaveScreen = () => {
 
               {/* Start Date */}
               <Text style={styles.modalInputLabel}>Start Date</Text>
-              <TouchableOpacity
-                style={styles.fullInput}
-                onPress={() => setShowStartPicker(true)}
-              >
-                <Text style={styles.inputText}>
-                  {startDate || 'YYYY-MM-DD'}
-                </Text>
-              </TouchableOpacity>
-              {showStartPicker && (
+              {Platform.OS === 'web' ? (
+                <input
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: '#E2E8F0',
+                    borderRadius: '12px',
+                    padding: '0 16px',
+                    height: '56px',
+                    fontSize: '16px',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    marginBottom: '24px'
+                  }}
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.fullInput}
+                  onPress={() => setShowStartPicker(true)}
+                >
+                  <Text style={styles.inputText}>
+                    {startDate || 'YYYY-MM-DD'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {showStartPicker && Platform.OS !== 'web' && (
                 <DateTimePicker
                   value={tempStartDate}
                   mode="date"
@@ -699,15 +723,40 @@ const LeaveScreen = () => {
 
               {/* End Date */}
               <Text style={styles.modalInputLabel}>End Date</Text>
-              <TouchableOpacity
-                style={styles.fullInput}
-                onPress={() => setShowEndPicker(true)}
-              >
-                <Text style={styles.inputText}>
-                  {endDate || 'YYYY-MM-DD'}
-                </Text>
-              </TouchableOpacity>
-              {showEndPicker && (
+              {Platform.OS === 'web' ? (
+                <input
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    borderColor: '#E2E8F0',
+                    borderRadius: '12px',
+                    padding: '0 16px',
+                    height: '56px',
+                    fontSize: '16px',
+                    color: '#0F172A',
+                    fontFamily: 'inherit',
+                    outline: 'none',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    marginBottom: '24px'
+                  }}
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.fullInput}
+                  onPress={() => setShowEndPicker(true)}
+                >
+                  <Text style={styles.inputText}>
+                    {endDate || 'YYYY-MM-DD'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {showEndPicker && Platform.OS !== 'web' && (
                 <DateTimePicker
                   value={tempEndDate}
                   mode="date"

@@ -24,6 +24,7 @@ import {
   PhoneIcon,
   MapPinIcon,
   BriefcaseIcon,
+  BuildingOffice2Icon,
   CalendarDaysIcon,
   CurrencyDollarIcon,
   CheckBadgeIcon,
@@ -36,9 +37,7 @@ import {
 } from 'react-native-heroicons/outline';
 import { CheckCircleIcon, XCircleIcon } from 'react-native-heroicons/solid';
 import { LinearGradient } from 'expo-linear-gradient';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { format } from 'date-fns';
 import api from '../../config/api';
 import socket from '../../config/socket';
 
@@ -66,6 +65,64 @@ const MONTH_NAMES = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
 ];
 
+const CustomDropdown = ({ label, items, selectedValue, onValueChange, placeholder = "Select..." }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedItem = items.find(i => i._id === selectedValue);
+
+  return (
+    <View style={styles.formGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.textInput, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+        onPress={() => setIsOpen(true)}
+      >
+        <Text style={{ color: selectedItem ? COLORS.text : COLORS.muted, fontSize: 14 }}>
+          {selectedItem ? selectedItem.name : placeholder}
+        </Text>
+        <ChevronRightIcon color={COLORS.muted} size={18} />
+      </TouchableOpacity>
+
+      <Modal visible={isOpen} transparent animationType="fade">
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 }}
+          onPress={() => setIsOpen(false)}
+          activeOpacity={1}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, maxHeight: 400, width: '100%', maxWidth: 360, alignSelf: 'center', overflow: 'hidden' }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.bg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.text }}>Select {label}</Text>
+              <TouchableOpacity onPress={() => setIsOpen(false)}>
+                <XMarkIcon color={COLORS.muted} size={20} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {items.length === 0 ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: COLORS.muted }}>No items found</Text>
+                </View>
+              ) : null}
+              {items.map(item => (
+                <TouchableOpacity
+                  key={item._id}
+                  style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight }}
+                  onPress={() => {
+                    onValueChange(item._id);
+                    setIsOpen(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 16, color: selectedValue === item._id ? COLORS.primary : COLORS.text, fontWeight: selectedValue === item._id ? '600' : '400' }}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
+
 const AdminEmployeeDetailScreen = ({ route, navigation }) => {
   const employee = route?.params?.employee || {};
   const [employeeData, setEmployeeData] = useState(employee);
@@ -89,14 +146,15 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
   const [editFirstName, setEditFirstName] = useState(employee.firstName || '');
   const [editLastName, setEditLastName] = useState(employee.lastName || '');
   const [editPhone, setEditPhone] = useState(employee.phone || '');
+  const [editEmail, setEditEmail] = useState(employee.user?.email || '');
   const [editDesignation, setEditDesignation] = useState(employee.designation || employee.position || '');
   const [editDept, setEditDept] = useState(employee.department?._id || '');
   const [editShift, setEditShift] = useState(employee.shift?._id || '');
+  const [editCompany, setEditCompany] = useState(employee.organization?._id || '');
   const [editPassword, setEditPassword] = useState('');
-  const [editDateOfJoining, setEditDateOfJoining] = useState(employee.dateOfJoining ? new Date(employee.dateOfJoining) : new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [shifts, setShifts] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -105,11 +163,12 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
       setEditFirstName(employee.firstName || '');
       setEditLastName(employee.lastName || '');
       setEditPhone(employee.phone || '');
+      setEditEmail(employee.user?.email || '');
       setEditDesignation(employee.designation || employee.position || '');
       setEditDept(employee.department?._id || '');
       setEditShift(employee.shift?._id || '');
+      setEditCompany(employee.organization?._id || '');
       setEditPassword('');
-      setEditDateOfJoining(employee.dateOfJoining ? new Date(employee.dateOfJoining) : new Date());
 
       fade.setValue(0);
       slide.setValue(12);
@@ -164,12 +223,14 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
     const fetchFormData = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
-        const [deptRes, shiftRes] = await Promise.all([
+        const [deptRes, shiftRes, compRes] = await Promise.all([
           api.get('/departments', { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { data: [] } })),
           api.get('/shifts', { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { data: [] } })),
+          api.get('/organization', { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { data: [] } })),
         ]);
         if (deptRes.data?.success) setDepartments(deptRes.data.data);
         if (shiftRes.data?.success) setShifts(shiftRes.data.data);
+        if (compRes.data?.success) setCompanies(compRes.data.data);
       } catch (error) {
         console.error('Error fetching form data:', error);
       }
@@ -191,10 +252,11 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
           firstName: editFirstName.trim(),
           lastName: editLastName.trim(),
           phone: editPhone.trim(),
+          email: editEmail.trim(),
           designation: editDesignation.trim(),
           department: editDept || undefined,
           shift: editShift || undefined,
-          dateOfJoining: editDateOfJoining.toISOString(),
+          organization: editCompany || undefined,
           password: editPassword.trim() || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -205,14 +267,17 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
         setEditPassword('');
         const selectedDeptObj = departments.find((d) => d._id === editDept);
         const selectedShiftObj = shifts.find((s) => s._id === editShift);
+        const selectedCompObj = companies.find((c) => c._id === editCompany);
         setEmployeeData((prev) => ({
           ...prev,
           firstName: editFirstName.trim(),
           lastName: editLastName.trim(),
           phone: editPhone.trim(),
+          user: { ...prev.user, email: editEmail.trim() },
           designation: editDesignation.trim(),
           position: editDesignation.trim(),
           department: selectedDeptObj ? { _id: editDept, name: selectedDeptObj.name } : prev.department,
+          organization: selectedCompObj ? { _id: editCompany, name: selectedCompObj.name } : prev.organization,
           shift: selectedShiftObj
             ? {
               _id: editShift,
@@ -377,7 +442,7 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         {/* Navigation Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('AdminEmployees')} activeOpacity={0.7}>
             <ChevronLeftIcon color={COLORS.text} size={20} strokeWidth={2.5} />
           </TouchableOpacity>
 
@@ -514,6 +579,7 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
 
               <View style={[styles.card, styles.gridItem]}>
                 <Text style={styles.cardTitle}>Employment Profile</Text>
+                <DetailRow icon={BuildingOffice2Icon} label="Company" value={employeeData.organization?.name} />
                 <DetailRow icon={BriefcaseIcon} label="Department" value={employeeData.department?.name} />
                 <DetailRow icon={CheckBadgeIcon} label="Designation" value={employeeData.designation || employeeData.position} />
                 <DetailRow
@@ -858,16 +924,30 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
                 </View>
               </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Phone Number</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  placeholder="+1 (555) 000-0000"
-                  placeholderTextColor={COLORS.muted}
-                  keyboardType="phone-pad"
-                />
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Phone Number</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editPhone}
+                    onChangeText={setEditPhone}
+                    placeholder="+1 (555) 000-0000"
+                    placeholderTextColor={COLORS.muted}
+                    keyboardType="phone-pad"
+                  />
+                </View>
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editEmail}
+                    onChangeText={setEditEmail}
+                    placeholder="john@example.com"
+                    placeholderTextColor={COLORS.muted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
               </View>
 
               <Text style={styles.formSectionHeading}>Role & Allocation</Text>
@@ -882,82 +962,29 @@ const AdminEmployeeDetailScreen = ({ route, navigation }) => {
                 />
               </View>
 
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Department</Text>
-                <FlatList
-                  data={departments}
-                  keyExtractor={(item) => item._id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chipList}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={[styles.chipBtn, editDept === item._id && styles.chipBtnActive]}
-                      onPress={() => setEditDept(item._id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.chipText, editDept === item._id && styles.chipTextActive]}>{item.name}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </View>
+              <CustomDropdown
+                label="Company"
+                items={companies}
+                selectedValue={editCompany}
+                onValueChange={setEditCompany}
+                placeholder="Select a company..."
+              />
 
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Assigned Shift</Text>
-                <FlatList
-                  data={shifts}
-                  keyExtractor={(item) => item._id}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chipList}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={[styles.chipBtn, editShift === item._id && styles.chipBtnActive]}
-                      onPress={() => setEditShift(item._id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.chipText, editShift === item._id && styles.chipTextActive]}>
-                        {item.name} ({item.startTime}-{item.endTime})
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </View>
+              <CustomDropdown
+                label="Department"
+                items={departments}
+                selectedValue={editDept}
+                onValueChange={setEditDept}
+                placeholder="Select a department..."
+              />
 
-              
-              <View style={styles.formGroup}>
-                <Text style={styles.inputLabel}>Joining Date</Text>
-                {Platform.OS === 'web' ? (
-                  <TextInput
-                    style={styles.textInput}
-                    type="date"
-                    value={editDateOfJoining.toISOString().split('T')[0]}
-                    onChange={(e) => setEditDateOfJoining(new Date(e.target.value))}
-                  />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.textInput, { justifyContent: 'center' }]}
-                      onPress={() => setShowDatePicker(true)}
-                    >
-                      <Text style={{ color: COLORS.text }}>
-                        {format(editDateOfJoining, 'MMM dd, yyyy')}
-                      </Text>
-                    </TouchableOpacity>
-                    {showDatePicker && (
-                      <DateTimePicker
-                        value={editDateOfJoining}
-                        mode="date"
-                        display="default"
-                        onChange={(event, selectedDate) => {
-                          setShowDatePicker(Platform.OS === 'ios');
-                          if (selectedDate) setEditDateOfJoining(selectedDate);
-                        }}
-                      />
-                    )}
-                  </>
-                )}
-              </View>
+              <CustomDropdown
+                label="Assigned Shift"
+                items={shifts.map(s => ({ _id: s._id, name: `${s.name} (${s.startTime}-${s.endTime})` }))}
+                selectedValue={editShift}
+                onValueChange={setEditShift}
+                placeholder="Select a shift..."
+              />
 
               <Text style={styles.formSectionHeading}>Security & Authentication</Text>
               <View style={styles.formGroup}>
@@ -1017,6 +1044,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerTitleWrap: { alignItems: 'center' },
   headerTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },

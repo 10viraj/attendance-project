@@ -54,6 +54,7 @@ const getEmployees = async (req, res, next) => {
     const employees = await Employee.find(query)
       .populate('user', 'email role')
       .populate('department', 'name')
+      .populate('organization', 'name')
       .populate('shift', 'name startTime endTime')
       .skip(startIndex)
       .limit(limit);
@@ -81,6 +82,7 @@ const getEmployee = async (req, res, next) => {
     const employee = await Employee.findById(req.params.id)
       .populate('user', 'email role')
       .populate('department')
+      .populate('organization')
       .populate('shift');
 
     if (!employee) {
@@ -109,11 +111,21 @@ const updateEmployee = async (req, res, next) => {
       throw new Error('Employee not found');
     }
 
-    // Update password if provided
-    if (req.body.password && employee.user) {
+    // Update password or email if provided
+    if ((req.body.password || req.body.email) && employee.user) {
       const user = await User.findById(employee.user);
       if (user) {
-        user.password = req.body.password;
+        if (req.body.password) {
+          user.password = req.body.password;
+        }
+        if (req.body.email && req.body.email !== user.email) {
+          const existingUser = await User.findOne({ email: req.body.email });
+          if (existingUser) {
+            res.status(400);
+            throw new Error('Email already in use');
+          }
+          user.email = req.body.email;
+        }
         await user.save();
       }
     }

@@ -35,6 +35,10 @@ const employeeSchema = new mongoose.Schema({
     zipCode: String,
     country: String
   },
+  organization: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization'
+  },
   department: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Department'

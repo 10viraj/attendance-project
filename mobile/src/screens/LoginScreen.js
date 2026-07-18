@@ -22,11 +22,49 @@ const LoginScreen = ({ navigation }) => {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
+  // NEW: tracks what kind of biometric this device actually has
+  // (fingerprint / face / iris), and whether it's usable at all.
+  const [biometricLabel, setBiometricLabel] = useState('Fingerprint');
+  const [biometricAvailable, setBiometricAvailable] = useState(true);
+
   const passwordInputRef = useRef(null);
 
   useEffect(() => {
     checkSavedSession();
+    checkBiometricSupport();
   }, []);
+
+  // NEW: Ask the OS what biometric types this device supports.
+  // This is what makes it "just work" regardless of where the
+  // physical sensor sits (side button, back panel, in-display, etc.) —
+  // the OS prompt itself renders the correct UI for that hardware.
+  const checkBiometricSupport = async () => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        setBiometricAvailable(false);
+        return;
+      }
+
+      setBiometricAvailable(true);
+
+      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        setBiometricLabel('Face ID');
+      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        setBiometricLabel('Fingerprint');
+      } else if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
+        setBiometricLabel('Iris Scan');
+      } else {
+        setBiometricLabel('Biometrics');
+      }
+    } catch (e) {
+      console.error('Error checking biometric support', e);
+      setBiometricAvailable(false);
+    }
+  };
 
   const checkSavedSession = async () => {
     try {
@@ -55,26 +93,28 @@ const LoginScreen = ({ navigation }) => {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
+      // CHANGED: no more silent auto-login fallback when hardware/enrollment
+      // is missing — that was bypassing the actual biometric check, which is
+      // why it could feel like "biometric isn't working". Now we tell the
+      // user clearly instead of quietly logging them in.
       if (!hasHardware) {
-        setFormError('No biometric hardware detected. Falling back to auto-login...');
-        await autoLogin();
+        setFormError('This device has no biometric sensor available.');
         return;
       }
 
       if (!isEnrolled) {
-        setFormError('No biometrics enrolled on this device. Falling back to auto-login...');
-        await autoLogin();
+        setFormError(`No ${biometricLabel.toLowerCase()} is set up on this device. Add one in your phone settings.`);
         return;
       }
 
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock Attendance App',
+        promptMessage: `Unlock with ${biometricLabel}`,
         fallbackLabel: 'Use Passcode',
         disableDeviceFallback: false,
+        cancelLabel: 'Cancel',
       });
 
       if (result.success) {
-        setFormError('Biometric success! Logging in...');
         // Restore session from biometric backups
         await AsyncStorage.setItem('userToken', token);
         const bUser = await AsyncStorage.getItem('biometricUserInfo');
@@ -84,13 +124,38 @@ const LoginScreen = ({ navigation }) => {
 
         await autoLogin();
       } else {
-        setFormError(`Biometric cancelled or failed: ${result.error || 'Unknown'}`);
+        // NEW: give a human-readable reason instead of a raw error code.
+        // These map to expo-local-authentication's real error strings.
+        const reason = mapBiometricError(result.error);
+        setFormError(reason);
       }
     } catch (error) {
       console.error('Biometric error', error);
       setFormError(`Biometric error: ${error.message || 'Please try again.'}`);
     } finally {
       setBiometricLoading(false);
+    }
+  };
+
+  // NEW: translates expo-local-authentication error codes into
+  // messages that actually tell the user what to do next.
+  const mapBiometricError = (errorCode) => {
+    switch (errorCode) {
+      case 'user_cancel':
+      case 'system_cancel':
+        return 'Biometric login was cancelled.';
+      case 'lockout':
+        return 'Too many failed attempts. Biometrics locked — use your passcode or password.';
+      case 'lockout_permanent':
+        return 'Biometrics permanently locked on this device. Please log in with your password.';
+      case 'not_enrolled':
+        return `No ${biometricLabel.toLowerCase()} enrolled. Add one in your phone settings.`;
+      case 'not_available':
+        return 'Biometric authentication is not available on this device.';
+      case 'authentication_failed':
+        return `${biometricLabel} did not match. Please try again.`;
+      default:
+        return `Biometric login failed${errorCode ? `: ${errorCode}` : '.'}`;
     }
   };
 
@@ -150,6 +215,10 @@ const LoginScreen = ({ navigation }) => {
           await AsyncStorage.setItem('employeeInfo', JSON.stringify(response.data.employee));
           await AsyncStorage.setItem('biometricEmployeeInfo', JSON.stringify(response.data.employee));
         }
+
+        // NEW: re-check biometric support right after a successful password
+        // login, since a token now exists and enrollment may have changed.
+        checkBiometricSupport();
 
         if (response.data.user.role === 'Admin') {
           navigation.replace('AdminMain');
@@ -287,11 +356,11 @@ const LoginScreen = ({ navigation }) => {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Biometric Card */}
+            {/* Biometric Card — only shown/enabled when the device actually supports it */}
             <TouchableOpacity
-              style={styles.biometricCard}
+              style={[styles.biometricCard, !biometricAvailable && styles.biometricCardDisabled]}
               onPress={handleBiometricLogin}
-              disabled={biometricLoading}
+              disabled={biometricLoading || !biometricAvailable}
               activeOpacity={0.7}
             >
               <View style={styles.biometricIconBox}>
@@ -299,7 +368,9 @@ const LoginScreen = ({ navigation }) => {
               </View>
               <View style={styles.biometricTextContent}>
                 <Text style={styles.biometricTitle}>Biometric Login</Text>
-                <Text style={styles.biometricSub}>Use Face ID or Fingerprint</Text>
+                <Text style={styles.biometricSub}>
+                  {biometricAvailable ? `Use ${biometricLabel}` : 'Not available on this device'}
+                </Text>
               </View>
               {biometricLoading ? (
                 <ActivityIndicator color="#475569" size="small" />
@@ -435,6 +506,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 16,
     marginBottom: 32,
+  },
+  biometricCardDisabled: {
+    opacity: 0.5,
   },
   biometricIconBox: {
     width: 56,

@@ -25,6 +25,8 @@ import {
   TrashIcon,
   XMarkIcon,
   PlusIcon,
+  EyeIcon,
+  EyeSlashIcon,
 } from 'react-native-heroicons/outline';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -55,6 +57,64 @@ const C = {
   redText: '#991B1B',
 };
 
+const CustomDropdown = ({ label, items, selectedValue, onValueChange, placeholder = "Select..." }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedItem = items.find(i => i._id === selectedValue);
+
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={Platform.OS === 'web' ? { fontSize: 14, fontWeight: '500', color: C.inkSub, marginBottom: 8 } : { fontSize: 13, fontWeight: '600', color: '#64748B', marginBottom: 8 }}>{label}</Text>
+      <TouchableOpacity
+        style={Platform.OS === 'web' ? { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' } : { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10, padding: 12, backgroundColor: '#ffffff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+        onPress={() => setIsOpen(true)}
+      >
+        <Text style={{ color: selectedItem ? C.ink : C.inkFaint }}>
+          {selectedItem ? selectedItem.name : placeholder}
+        </Text>
+        <ChevronRightIcon color={C.inkFaint} size={18} />
+      </TouchableOpacity>
+
+      <Modal visible={isOpen} transparent animationType="fade">
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 20 }}
+          onPress={() => setIsOpen(false)}
+          activeOpacity={1}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, maxHeight: 400, width: '100%', maxWidth: 360, alignSelf: 'center', overflow: 'hidden' }}>
+            <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surfaceAlt, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: C.ink }}>Select {label}</Text>
+              <TouchableOpacity onPress={() => setIsOpen(false)}>
+                <XMarkIcon color={C.inkMuted} size={20} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {items.length === 0 ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: C.inkMuted }}>No items found</Text>
+                </View>
+              ) : null}
+              {items.map(item => (
+                <TouchableOpacity
+                  key={item._id}
+                  style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: C.borderSoft }}
+                  onPress={() => {
+                    onValueChange(item._id);
+                    setIsOpen(false);
+                  }}
+                >
+                  <Text style={{ fontSize: 16, color: selectedValue === item._id ? C.accent : C.ink, fontWeight: selectedValue === item._id ? '600' : '400' }}>
+                    {item.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
+
 const AdminEmployeesScreen = ({ navigation }) => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,10 +127,14 @@ const AdminEmployeesScreen = ({ navigation }) => {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [address, setAddress] = useState('');
   const [department, setDepartment] = useState('');
   const [dateOfJoining, setDateOfJoining] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [departments, setDepartments] = useState([]);
+  const [company, setCompany] = useState('');
+  const [companies, setCompanies] = useState([]);
 
   // Web-only state
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
@@ -157,7 +221,26 @@ const AdminEmployeesScreen = ({ navigation }) => {
         console.error('Error fetching departments:', error);
       }
     };
+
+    const fetchCompanies = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          const res = await api.get('/organization', { headers: { Authorization: `Bearer ${token}` } });
+          if (res.data?.success) {
+            setCompanies(res.data.data);
+            if (res.data.data.length > 0) {
+              setCompany(res.data.data[0]._id);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching companies:', error);
+      }
+    };
+
     fetchDepartments();
+    fetchCompanies();
     const unsubscribe = navigation.addListener('focus', () => {
       fetchEmployees();
     });
@@ -204,6 +287,9 @@ const AdminEmployeesScreen = ({ navigation }) => {
     if (departments.length > 0) {
       setDepartment(departments[0]._id);
     }
+    if (companies.length > 0) {
+      setCompany(companies[0]._id);
+    }
     setDateOfJoining(new Date());
   };
 
@@ -216,11 +302,13 @@ const AdminEmployeesScreen = ({ navigation }) => {
     setAdding(true);
     try {
       const res = await api.post('/auth/register', {
-        firstName: firstName.trim(), 
-        lastName: lastName.trim(), 
-        email: email.trim(), 
-        password: password.trim(), 
-        department, 
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password: password.trim(),
+        address: address.trim(),
+        department,
+        organization: company,
         role: 'Employee'
       });
       if (res.data.success) {
@@ -228,6 +316,17 @@ const AdminEmployeesScreen = ({ navigation }) => {
         else Alert.alert('Success', 'Employee created successfully');
         closeModal();
         fetchEmployees();
+
+        // Fetch the fully populated employee and redirect to profile
+        try {
+          const token = await AsyncStorage.getItem('userToken');
+          const empRes = await api.get(`/employees/${res.data.employee._id}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (empRes.data.success) {
+            navigation.navigate('AdminEmployeeDetail', { employee: empRes.data.data });
+          }
+        } catch (navErr) {
+          console.error('Failed to redirect to profile:', navErr);
+        }
       }
     } catch (error) {
       const errMsg = error.response?.data?.message || 'Failed to create employee';
@@ -282,6 +381,15 @@ const AdminEmployeesScreen = ({ navigation }) => {
                 onChangeText={setLastName}
                 returnKeyType="next"
               />
+              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Address</Text>
+              <TextInput
+                style={Platform.OS === 'web' ? w.input : styles.input}
+                placeholder="123 Main St, City"
+                placeholderTextColor={C.inkFaint}
+                value={address}
+                onChangeText={setAddress}
+                returnKeyType="next"
+              />
               <Text style={Platform.OS === 'web' ? w.label : styles.label}>Email *</Text>
               <TextInput
                 style={Platform.OS === 'web' ? w.input : styles.input}
@@ -295,16 +403,25 @@ const AdminEmployeesScreen = ({ navigation }) => {
                 returnKeyType="next"
               />
               <Text style={Platform.OS === 'web' ? w.label : styles.label}>Password *</Text>
-              <TextInput
-                style={Platform.OS === 'web' ? w.input : styles.input}
-                placeholder="******"
-                placeholderTextColor={C.inkFaint}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                returnKeyType="done"
-              />
-              
+              <View style={[Platform.OS === 'web' ? w.input : styles.input, { flexDirection: 'row', alignItems: 'center', padding: 0, paddingHorizontal: 0, paddingVertical: 0 }]}>
+                <TextInput
+                  style={{ flex: 1, padding: 12, outlineStyle: Platform.OS === 'web' ? 'none' : undefined, color: C.ink, fontSize: 14 }}
+                  placeholder="******"
+                  placeholderTextColor={C.inkFaint}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={{ padding: 12 }}>
+                  {showPassword ? (
+                    <EyeSlashIcon color={C.inkMuted} size={20} />
+                  ) : (
+                    <EyeIcon color={C.inkMuted} size={20} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
               <Text style={Platform.OS === 'web' ? w.label : styles.label}>Joining Date</Text>
               {Platform.OS === 'web' ? (
                 <TextInput
@@ -336,35 +453,21 @@ const AdminEmployeesScreen = ({ navigation }) => {
                   )}
                 </>
               )}
-              <Text style={Platform.OS === 'web' ? w.label : styles.label}>Department</Text>
-              {departments.length === 0 ? (
-                <Text style={Platform.OS === 'web' ? w.helperText : styles.helperText}>
-                  No departments yet — you can assign one later.
-                </Text>
-              ) : (
-                <View style={Platform.OS === 'web' ? w.typeSelector : styles.typeSelector}>
-                  {departments.map(dept => {
-                    const isActive = department === dept._id;
-                    return (
-                      <TouchableOpacity
-                        key={dept._id}
-                        style={[
-                          Platform.OS === 'web' ? w.typeOption : styles.typeOption,
-                          isActive && (Platform.OS === 'web' ? w.typeOptionActive : styles.typeOptionActive)
-                        ]}
-                        onPress={() => setDepartment(dept._id)}
-                      >
-                        <Text style={[
-                          Platform.OS === 'web' ? w.typeOptionText : styles.typeOptionText,
-                          isActive && (Platform.OS === 'web' ? w.typeOptionTextActive : styles.typeOptionTextActive)
-                        ]}>
-                          {dept.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+              <CustomDropdown
+                label="Company"
+                items={companies}
+                selectedValue={company}
+                onValueChange={setCompany}
+                placeholder="Select a company..."
+              />
+
+              <CustomDropdown
+                label="Department"
+                items={departments}
+                selectedValue={department}
+                onValueChange={setDepartment}
+                placeholder="Select a department..."
+              />
               <TouchableOpacity
                 style={[
                   Platform.OS === 'web' ? w.submitBtn : styles.submitButton,
@@ -398,7 +501,7 @@ const AdminEmployeesScreen = ({ navigation }) => {
           {/* ── Page Header ── */}
           <View style={w.pageHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={w.pageTitle}>Staff Directory</Text>
+              <Text style={w.pageTitle}>Staff Director</Text>
               <Text style={w.pageSubtitle}>Manage and view all employee information</Text>
             </View>
             <TouchableOpacity

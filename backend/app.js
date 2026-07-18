@@ -19,6 +19,8 @@ const wfhRoutes = require('./routes/wfhRoutes');
 const holidayRoutes = require('./routes/holidayRoutes');
 const announcementRoutes = require('./routes/announcementRoutes');
 const documentRoutes = require('./routes/documentRoutes');
+const organizationRoutes = require('./routes/organizationRoutes');
+const payrollRoutes = require('./routes/payrollRoutes');
 
 // Middleware imports
 const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
@@ -66,6 +68,8 @@ app.use('/api/wfh', wfhRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/organization', organizationRoutes);
+app.use('/api/payroll', payrollRoutes);
 
 // Error Handling Middlewares
 app.use(notFound);
