@@ -91,10 +91,6 @@ npm start -c
 - **Email:** `admin@smartattend.com`
 - **Password:** `admin123`
 
-### Employee (Mobile App)
-- **Email:** `virajsomani@gmail.com`
-- **Password:** `employee123`
-
 ---
 
 ## 📝 License
