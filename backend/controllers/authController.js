@@ -16,13 +16,20 @@ const registerUser = async (req, res, next) => {
   try {
     const { email, password, role, firstName, lastName, department, organization, dateOfJoining, address } = req.body;
 
-    const userExists = await User.findOne({ email });
+    if (!email || !password) {
+      res.status(400);
+      throw new Error('Please provide email and password');
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    const userExists = await User.findOne({ email: cleanEmail });
     if (userExists) {
       res.status(400);
       throw new Error('User already exists');
     }
 
-    const user = await User.create({ email, password, role });
+    const user = await User.create({ email: cleanEmail, password, role });
 
     if (user) {
       // Auto-generate employeeId
@@ -75,7 +82,13 @@ const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).select('+password');
+    if (!email || !password) {
+      res.status(400);
+      throw new Error('Please provide email and password');
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail }).select('+password');
 
     if (user && (await user.matchPassword(password))) {
       const employee = await Employee.findOne({ user: user._id });
