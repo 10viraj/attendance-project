@@ -1,57 +1,91 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-mongoose.connect('mongodb://127.0.0.1:27017/corporate_attendance')
+const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/corporate_attendance';
+
+console.log('Connecting to MongoDB...');
+
+mongoose.connect(mongoUri)
   .then(async () => {
+    console.log('Connected successfully!');
     const db = mongoose.connection.db;
     const adminPassword = await bcrypt.hash('admin123', 10);
     const employeePassword = await bcrypt.hash('employee123', 10);
 
-    // 1. Reset admin@gmail.com
+    // 1. Admin account: admin@smartattend.com
+    await db.collection('users').updateOne(
+      { email: 'admin@smartattend.com' },
+      {
+        $set: {
+          email: 'admin@smartattend.com',
+          password: adminPassword,
+          role: 'Admin',
+          updatedAt: new Date()
+        },
+        $setOnInsert: { createdAt: new Date() }
+      },
+      { upsert: true }
+    );
+    console.log('✓ Admin account configured: admin@smartattend.com / admin123');
+
+    // 2. Secondary admin account: admin@gmail.com
     await db.collection('users').updateOne(
       { email: 'admin@gmail.com' },
-      { $set: { password: adminPassword, role: 'Admin' } }
+      {
+        $set: {
+          email: 'admin@gmail.com',
+          password: adminPassword,
+          role: 'Admin',
+          updatedAt: new Date()
+        },
+        $setOnInsert: { createdAt: new Date() }
+      },
+      { upsert: true }
     );
+    console.log('✓ Secondary admin configured: admin@gmail.com / admin123');
 
-    // 2. Ensure admin@smartattend.com (referenced in README & tests) exists with admin123
-    const smartAdmin = await db.collection('users').findOne({ email: 'admin@smartattend.com' });
-    if (!smartAdmin) {
-      await db.collection('users').insertOne({
-        email: 'admin@smartattend.com',
-        password: adminPassword,
-        role: 'Admin',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      console.log('Created admin@smartattend.com account.');
-    } else {
-      await db.collection('users').updateOne(
-        { email: 'admin@smartattend.com' },
-        { $set: { password: adminPassword, role: 'Admin' } }
+    // 3. Employee account: virajsomani@gmail.com
+    const empUserRes = await db.collection('users').findOneAndUpdate(
+      { email: 'virajsomani@gmail.com' },
+      {
+        $set: {
+          email: 'virajsomani@gmail.com',
+          password: employeePassword,
+          role: 'Employee',
+          updatedAt: new Date()
+        },
+        $setOnInsert: { createdAt: new Date() }
+      },
+      { upsert: true, returnDocument: 'after' }
+    );
+    console.log('✓ Employee account configured: virajsomani@gmail.com / employee123');
+
+    // Ensure Employee profile exists for virajsomani@gmail.com
+    const empUser = empUserRes.value || empUserRes;
+    if (empUser && empUser._id) {
+      await db.collection('employees').updateOne(
+        { user: empUser._id },
+        {
+          $set: {
+            user: empUser._id,
+            employeeId: 'EMP01',
+            firstName: 'Viraj',
+            lastName: 'Somani',
+            isActive: true,
+            updatedAt: new Date()
+          },
+          $setOnInsert: { createdAt: new Date() }
+        },
+        { upsert: true }
       );
-      console.log('Updated admin@smartattend.com password.');
+      console.log('✓ Employee profile linked (EMP01)');
     }
 
-    // 3. Reset employee accounts
-    const employeeEmails = [
-      'virajsomani@gmail.com',
-      'jaimin@gmail.com',
-      'mohit@gmail.com',
-      'jigar@gmail.com',
-      'abcd@gmail.com'
-    ];
-
-    for (const email of employeeEmails) {
-      await db.collection('users').updateOne(
-        { email },
-        { $set: { password: employeePassword } }
-      );
-    }
-
-    console.log('Employee and Admin passwords successfully reset.');
+    console.log('\nAll users and credentials ready for production!');
     process.exit(0);
   })
   .catch(err => {
-    console.error(err);
+    console.error('Database connection error:', err.message);
     process.exit(1);
   });

@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -27,8 +28,12 @@ const { errorHandler, notFound } = require('./middlewares/errorMiddleware');
 
 const app = express();
 
-// Security Middlewares
-app.use(helmet());
+// Security Middlewares (relax CSP so Vite React scripts/styles load smoothly)
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
 app.use(cors({
   origin: function (origin, callback) {
     callback(null, true);
@@ -48,11 +53,6 @@ if (process.env.NODE_ENV === 'development') {
 // Static folder for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Base API route
-app.get('/', (req, res) => {
-  res.send('Corporate Smart Attendance System API is running...');
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
@@ -70,6 +70,23 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/organization', organizationRoutes);
 app.use('/api/payroll', payrollRoutes);
+
+// Frontend Static Serving (if admin web portal is built)
+const frontendDist = path.join(__dirname, '../admin/dist');
+if (fs.existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+} else {
+  // Base API route fallback if frontend is not present
+  app.get('/', (req, res) => {
+    res.send('Corporate Smart Attendance System API is running...');
+  });
+}
 
 // Error Handling Middlewares
 app.use(notFound);
