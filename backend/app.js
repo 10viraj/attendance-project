@@ -75,11 +75,11 @@ app.use('/api/payroll', payrollRoutes);
 const frontendDist = path.join(__dirname, '../admin/dist');
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
-      return next();
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      return res.sendFile(path.join(frontendDist, 'index.html'));
     }
-    res.sendFile(path.join(frontendDist, 'index.html'));
+    next();
   });
 } else {
   // Base API route fallback if frontend is not present
