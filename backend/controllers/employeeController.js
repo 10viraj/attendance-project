@@ -50,6 +50,13 @@ const getEmployees = async (req, res, next) => {
       ];
     }
 
+    if (req.query.organization && req.query.organization !== 'all') {
+      query.organization = req.query.organization;
+    }
+    if (req.query.department && req.query.department !== 'all') {
+      query.department = req.query.department;
+    }
+
     const total = await Employee.countDocuments(query);
     const employees = await Employee.find(query)
       .populate('user', 'email role')

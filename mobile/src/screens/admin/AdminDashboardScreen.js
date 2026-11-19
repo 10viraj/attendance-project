@@ -1,7 +1,11 @@
 import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, StatusBar, ActivityIndicator, TouchableOpacity, Dimensions, Modal, FlatList, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UsersIcon, CheckCircleIcon, XCircleIcon, ClockIcon, UserGroupIcon, CalendarIcon, ArrowTrendingUpIcon, PlusIcon, BriefcaseIcon } from 'react-native-heroicons/outline';
+import {
+  UsersIcon, CheckCircleIcon, XCircleIcon, ClockIcon, UserGroupIcon,
+  CalendarIcon, ArrowTrendingUpIcon, PlusIcon, BriefcaseIcon,
+  BuildingOffice2Icon, MagnifyingGlassIcon, ChevronRightIcon, CheckIcon, XMarkIcon
+} from 'react-native-heroicons/outline';
 import { UsersIcon as UsersSolid, UserGroupIcon as UserGroupSolid } from 'react-native-heroicons/solid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -15,6 +19,12 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Organization Filter States
+  const [organizations, setOrganizations] = useState([]);
+  const [selectedOrgId, setSelectedOrgId] = useState('all');
+  const [showOrgModal, setShowOrgModal] = useState(false);
+  const [searchEmployeeQuery, setSearchEmployeeQuery] = useState('');
+
   // Department Management States
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [deptsList, setDeptsList] = useState([]);
@@ -22,6 +32,22 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [newDeptDesc, setNewDeptDesc] = useState('');
   const [deptLoading, setDeptLoading] = useState(false);
   const [deptSubmitting, setDeptSubmitting] = useState(false);
+
+  const fetchOrganizations = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (token) {
+        const res = await api.get('/organization', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data?.success && res.data.data) {
+          setOrganizations(res.data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching organizations:', err);
+    }
+  };
 
   const fetchDepartments = async () => {
     setDeptLoading(true);
@@ -55,7 +81,7 @@ const AdminDashboardScreen = ({ navigation }) => {
         setNewDeptDesc('');
         Alert.alert('Success', `Department "${response.data.data.name}" created successfully!`);
         await fetchDepartments();
-        await loadDashboardData(); // Refresh count on dashboard
+        await loadDashboardData(selectedOrgId);
       }
     } catch (error) {
       console.error('Create Department Error:', error.response?.data || error.message);
@@ -65,7 +91,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     }
   };
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (orgId = selectedOrgId) => {
     setLoading(true);
     try {
       const userInfo = await AsyncStorage.getItem('userInfo');
@@ -73,8 +99,8 @@ const AdminDashboardScreen = ({ navigation }) => {
       if (userInfo) setAdmin(JSON.parse(userInfo));
 
       if (token) {
-        // Fetch dashboard statistics
-        const res = await api.get('/analytics', {
+        const url = orgId && orgId !== 'all' ? `/analytics?organization=${orgId}` : '/analytics';
+        const res = await api.get(url, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.data.success) {
@@ -90,12 +116,11 @@ const AdminDashboardScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      loadDashboardData();
+      fetchOrganizations();
+      loadDashboardData(selectedOrgId);
       
-      // Auto-refresh when someone checks in
-      const handleAttendanceUpdate = (data) => {
-        // We can show a small native alert if we want, but silently refreshing is cleaner for web/mobile
-        loadDashboardData();
+      const handleAttendanceUpdate = () => {
+        loadDashboardData(selectedOrgId);
       };
       
       socket.on('attendanceUpdate', handleAttendanceUpdate);
@@ -103,8 +128,22 @@ const AdminDashboardScreen = ({ navigation }) => {
       return () => {
         socket.off('attendanceUpdate', handleAttendanceUpdate);
       };
-    }, [])
+    }, [selectedOrgId])
   );
+
+  const selectedOrgObj = organizations.find(o => o._id === selectedOrgId);
+
+  const filteredEmployees = (analytics?.employees || []).filter(emp => {
+    if (!searchEmployeeQuery.trim()) return true;
+    const q = searchEmployeeQuery.toLowerCase();
+    return (
+      emp.name?.toLowerCase().includes(q) ||
+      emp.employeeId?.toLowerCase().includes(q) ||
+      emp.department?.toLowerCase().includes(q) ||
+      emp.designation?.toLowerCase().includes(q) ||
+      emp.todayStatus?.toLowerCase().includes(q)
+    );
+  });
 
   const StatCard = ({ title, value, icon: Icon, bgColor, iconColor, trend, onPress }) => (
     <TouchableOpacity
@@ -153,6 +192,35 @@ const AdminDashboardScreen = ({ navigation }) => {
             </View>
           </View>
 
+          {/* Organization Selector Bar */}
+          <View style={styles.orgSelectorCard}>
+            <View style={styles.orgSelectorInfo}>
+              <View style={styles.orgBadgeIcon}>
+                <BuildingOffice2Icon color="#2563eb" size={20} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.orgSelectorSub}>ORGANIZATION</Text>
+                <Text style={styles.orgSelectorName} numberOfLines={1}>
+                  {selectedOrgId === 'all'
+                    ? 'All Organizations'
+                    : (selectedOrgObj?.name || 'Selected Organization')}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.changeOrgBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowOrgModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Select Organization"
+            >
+              <Text style={styles.changeOrgBtnText}>
+                {selectedOrgId === 'all' ? 'Select Organization ▾' : `${selectedOrgObj?.name?.trim() || 'Org'} ▾`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Primary Action Row */}
           <View style={styles.actionRow}>
             <Text style={styles.sectionTitle}>Today's Metrics</Text>
@@ -172,7 +240,7 @@ const AdminDashboardScreen = ({ navigation }) => {
             </View>
           ) : analytics ? (
             <>
-              {/* Main Main Overview Chart / Card */}
+              {/* Main Overview Card */}
               <View style={styles.primaryCard}>
                 <View style={styles.primaryCardContent}>
                   <View>
@@ -189,10 +257,14 @@ const AdminDashboardScreen = ({ navigation }) => {
                 <View style={styles.progressBarContainer}>
                   <View style={[styles.progressBar, { width: `${analytics.attendancePercentage}%` }]} />
                 </View>
-                <Text style={styles.progressSubText}>Looking good! Most of your team is present today.</Text>
+                <Text style={styles.progressSubText}>
+                  {Number(analytics.attendancePercentage) > 50
+                    ? 'Looking good! Most of your team is present today.'
+                    : 'Check the attendance list below for employee details.'}
+                </Text>
               </View>
 
-              {/* Grid of Stats matching Web UI */}
+              {/* Grid of Stats */}
               <View style={styles.statsGrid}>
                 {/* Total Employees */}
                 <StatCard
@@ -245,7 +317,11 @@ const AdminDashboardScreen = ({ navigation }) => {
                   <Text style={styles.sectionTitle}>Departments</Text>
                   <Text style={styles.wideCardValue}>{analytics.totalDepartments}</Text>
                 </View>
-                <Text style={styles.wideCardSub}>Active departments in the organization</Text>
+                <Text style={styles.wideCardSub}>
+                  {selectedOrgId === 'all'
+                    ? 'Active departments across all organizations'
+                    : `Active departments in ${selectedOrgObj?.name || 'this organization'}`}
+                </Text>
                 <TouchableOpacity
                   style={styles.manageButton}
                   onPress={() => {
@@ -259,6 +335,133 @@ const AdminDashboardScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
+              {/* Employee Attendance List Card */}
+              <View style={styles.wideCard}>
+                <View style={styles.wideCardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={styles.sectionTitle}>
+                        {selectedOrgId === 'all'
+                          ? 'All Employees Attendance'
+                          : `${selectedOrgObj?.name?.trim() || 'Organization'} Employees`}
+                      </Text>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countBadgeText}>{filteredEmployees.length}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.wideCardSub}>
+                      Live attendance status & details for today
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.manageEmployeesBtn}
+                    onPress={() => navigation.navigate('AdminEmployees')}
+                  >
+                    <Text style={styles.manageEmployeesBtnText}>All Employees →</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Search Bar */}
+                <View style={styles.searchContainer}>
+                  <MagnifyingGlassIcon color="#94a3b8" size={18} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by name, ID, or department..."
+                    placeholderTextColor="#94a3b8"
+                    value={searchEmployeeQuery}
+                    onChangeText={setSearchEmployeeQuery}
+                  />
+                  {searchEmployeeQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchEmployeeQuery('')}>
+                      <XMarkIcon color="#94a3b8" size={16} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Employees Table / Rows */}
+                {filteredEmployees.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <UsersIcon color="#cbd5e1" size={40} />
+                    <Text style={styles.emptyTitle}>No Employees Found</Text>
+                    <Text style={styles.emptySub}>
+                      {selectedOrgId === 'all'
+                        ? 'No active employees registered yet.'
+                        : `No active employees assigned to ${selectedOrgObj?.name?.trim() || 'this organization'}.`}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.employeeRowsContainer}>
+                    {filteredEmployees.map((emp) => {
+                      const isPresent = emp.todayStatus === 'Present';
+                      const isLate = emp.todayStatus === 'Late';
+                      const isHalfDay = emp.todayStatus === 'Half-Day';
+                      const isLeave = emp.todayStatus === 'On Leave';
+
+                      return (
+                        <TouchableOpacity
+                          key={emp._id}
+                          style={styles.employeeRow}
+                          activeOpacity={0.7}
+                          onPress={() => navigation.navigate('AdminEmployeeDetail', { employee: emp })}
+                        >
+                          {/* Avatar Circle */}
+                          <View style={styles.empAvatarCircle}>
+                            <Text style={styles.empAvatarText}>
+                              {emp.firstName?.[0] || emp.name?.[0] || 'E'}
+                            </Text>
+                          </View>
+
+                          {/* Info */}
+                          <View style={styles.empDetails}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <Text style={styles.empNameText}>{emp.name}</Text>
+                              <View style={styles.empIdPill}>
+                                <Text style={styles.empIdPillText}>{emp.employeeId}</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.empMetaText}>
+                              {emp.department} • {emp.designation}
+                              {selectedOrgId === 'all' && emp.organization ? ` • ${emp.organization}` : ''}
+                            </Text>
+                          </View>
+
+                          {/* Status Badge */}
+                          <View style={styles.empStatusBlock}>
+                            <View style={[
+                              styles.statusBadge,
+                              isPresent && styles.badgePresent,
+                              isLate && styles.badgeLate,
+                              isHalfDay && styles.badgeHalfDay,
+                              isLeave && styles.badgeLeave,
+                              (!isPresent && !isLate && !isHalfDay && !isLeave) && styles.badgeAbsent,
+                            ]}>
+                              <Text style={[
+                                styles.statusBadgeText,
+                                isPresent && styles.textPresent,
+                                isLate && styles.textLate,
+                                isHalfDay && styles.textHalfDay,
+                                isLeave && styles.textLeave,
+                                (!isPresent && !isLate && !isHalfDay && !isLeave) && styles.textAbsent,
+                              ]}>
+                                ● {emp.todayStatus}
+                              </Text>
+                            </View>
+
+                            {emp.checkInTime ? (
+                              <Text style={styles.checkInTimeText}>
+                                In: {new Date(emp.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <ChevronRightIcon color="#cbd5e1" size={18} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+
             </>
           ) : (
             <View style={styles.loadingContainer}>
@@ -268,6 +471,133 @@ const AdminDashboardScreen = ({ navigation }) => {
 
         </ScrollView>
       </SafeAreaView>
+
+      {/* Select Organization Modal */}
+      <Modal
+        visible={showOrgModal}
+        transparent={true}
+        animationType={Platform.OS === 'web' ? 'fade' : 'slide'}
+        onRequestClose={() => setShowOrgModal(false)}
+      >
+        <TouchableOpacity
+          style={Platform.OS === 'web' ? styles.webModalOverlay : styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowOrgModal(false)}
+        >
+          <View
+            style={Platform.OS === 'web' ? styles.webModalContent : styles.modalContent}
+            onStartShouldSetResponder={() => true}
+          >
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <BuildingOffice2Icon color="#2563eb" size={24} />
+                <Text style={styles.modalTitle}>Select Organization</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowOrgModal(false)}>
+                <XMarkIcon color="#64748b" size={22} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+              Filter dashboard metrics, overall attendance, and employee list by organization.
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+              {/* Option: All Organizations */}
+              <TouchableOpacity
+                style={[
+                  styles.orgOptionItem,
+                  selectedOrgId === 'all' && styles.orgOptionSelected
+                ]}
+                onPress={() => {
+                  setSelectedOrgId('all');
+                  setShowOrgModal(false);
+                  loadDashboardData('all');
+                }}
+              >
+                <View style={[
+                  styles.orgOptionIconBox,
+                  selectedOrgId === 'all' && styles.orgOptionIconBoxSelected
+                ]}>
+                  <BuildingOffice2Icon color={selectedOrgId === 'all' ? '#2563eb' : '#64748b'} size={20} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[
+                    styles.orgOptionTitle,
+                    selectedOrgId === 'all' && styles.orgOptionTitleSelected
+                  ]}>
+                    All Organizations
+                  </Text>
+                  <Text style={styles.orgOptionSub}>Company-wide consolidated view</Text>
+                </View>
+                {selectedOrgId === 'all' && (
+                  <CheckIcon color="#2563eb" size={20} />
+                )}
+              </TouchableOpacity>
+
+              {/* Individual Organizations */}
+              {organizations.map(org => {
+                const isSelected = selectedOrgId === org._id;
+                return (
+                  <TouchableOpacity
+                    key={org._id}
+                    style={[
+                      styles.orgOptionItem,
+                      isSelected && styles.orgOptionSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedOrgId(org._id);
+                      setShowOrgModal(false);
+                      loadDashboardData(org._id);
+                    }}
+                  >
+                    <View style={[
+                      styles.orgOptionIconBox,
+                      isSelected && styles.orgOptionIconBoxSelected
+                    ]}>
+                      <BriefcaseIcon color={isSelected ? '#2563eb' : '#64748b'} size={20} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[
+                        styles.orgOptionTitle,
+                        isSelected && styles.orgOptionTitleSelected
+                      ]}>
+                        {org.name}
+                      </Text>
+                      <Text style={styles.orgOptionSub}>
+                        {org.industry ? `${org.industry} • ` : ''}
+                        {org.city || org.country || 'Active Organization'}
+                      </Text>
+                    </View>
+                    {isSelected && (
+                      <CheckIcon color="#2563eb" size={20} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {organizations.length === 0 && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#94a3b8', fontSize: 14 }}>No organizations created yet.</Text>
+                </View>
+              )}
+            </ScrollView>
+
+            {/* Quick Link to Manage Organizations */}
+            <TouchableOpacity
+              style={styles.manageOrgShortcut}
+              onPress={() => {
+                setShowOrgModal(false);
+                navigation.navigate('AdminCompany');
+              }}
+            >
+              <PlusIcon color="#2563eb" size={18} />
+              <Text style={styles.manageOrgShortcutText}>Create / Manage Organizations</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Manage Departments Modal */}
       <Modal
@@ -300,11 +630,9 @@ const AdminDashboardScreen = ({ navigation }) => {
                 onChangeText={setNewDeptName}
               />
               <TextInput
-                style={[styles.textInput, { height: 50, textAlignVertical: 'top', paddingTop: 10 }]}
-                placeholder="Description (optional)"
+                style={styles.textInput}
+                placeholder="Description (Optional)"
                 placeholderTextColor="#94a3b8"
-                multiline
-                numberOfLines={2}
                 value={newDeptDesc}
                 onChangeText={setNewDeptDesc}
               />
@@ -314,37 +642,36 @@ const AdminDashboardScreen = ({ navigation }) => {
                 disabled={deptSubmitting}
               >
                 {deptSubmitting ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <ActivityIndicator color="#ffffff" size="small" />
                 ) : (
                   <Text style={styles.addButtonText}>Add Department</Text>
                 )}
               </TouchableOpacity>
             </View>
 
-            {/* List of Current Departments */}
+            {/* Existing Departments List */}
             <Text style={styles.listHeader}>Existing Departments ({deptsList.length})</Text>
             {deptLoading ? (
-              <ActivityIndicator color="#2563eb" style={{ marginVertical: 20 }} />
+              <ActivityIndicator color="#2563eb" style={{ marginTop: 20 }} />
             ) : (
               <FlatList
                 data={deptsList}
                 keyExtractor={(item) => item._id}
-                contentContainerStyle={{ paddingBottom: 20 }}
                 renderItem={({ item }) => (
                   <View style={styles.deptItem}>
                     <View style={styles.deptIconBox}>
-                      <BriefcaseIcon color="#2563eb" size={20} />
+                      <UserGroupSolid color="#2563eb" size={20} />
                     </View>
                     <View style={styles.deptInfo}>
                       <Text style={styles.deptName}>{item.name}</Text>
                       {item.description ? (
-                        <Text style={styles.deptDesc} numberOfLines={1}>{item.description}</Text>
+                        <Text style={styles.deptDesc}>{item.description}</Text>
                       ) : null}
                     </View>
                   </View>
                 )}
                 ListEmptyComponent={
-                  <Text style={styles.emptyListText}>No departments configured yet.</Text>
+                  <Text style={styles.emptyListText}>No departments found.</Text>
                 }
               />
             )}
@@ -372,7 +699,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
     marginTop: 10,
   },
   greetingMain: {
@@ -404,6 +731,61 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '700',
+  },
+  orgSelectorCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#94a3b8',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  orgSelectorInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  orgBadgeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orgSelectorSub: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94a3b8',
+    letterSpacing: 0.5,
+  },
+  orgSelectorName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: 2,
+  },
+  changeOrgBtn: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  changeOrgBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563eb',
   },
   actionRow: {
     flexDirection: 'row',
@@ -490,7 +872,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#10b981', // emerald-500
+    backgroundColor: '#10b981',
     borderRadius: 4,
   },
   progressSubText: {
@@ -600,6 +982,198 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 14,
     fontWeight: '600',
+  },
+  countBadge: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  manageEmployeesBtn: {
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  manageEmployeesBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+    marginBottom: 16,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0f172a',
+  },
+  employeeRowsContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    overflow: 'hidden',
+  },
+  employeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
+    gap: 12,
+  },
+  empAvatarCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  empAvatarText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  empDetails: {
+    flex: 1,
+  },
+  empNameText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  empIdPill: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  empIdPillText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  empMetaText: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  empStatusBlock: {
+    alignItems: 'flex-end',
+    marginRight: 4,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgePresent: { backgroundColor: '#ecfdf5' },
+  badgeLate: { backgroundColor: '#fffbeb' },
+  badgeHalfDay: { backgroundColor: '#fef3c7' },
+  badgeLeave: { backgroundColor: '#fff1f2' },
+  badgeAbsent: { backgroundColor: '#f1f5f9' },
+  statusBadgeText: { fontSize: 11, fontWeight: '700' },
+  textPresent: { color: '#059669' },
+  textLate: { color: '#d97706' },
+  textHalfDay: { color: '#b45309' },
+  textLeave: { color: '#e11d48' },
+  textAbsent: { color: '#64748b' },
+  checkInTimeText: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    paddingVertical: 30,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  orgOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    backgroundColor: '#ffffff',
+    gap: 12,
+  },
+  orgOptionSelected: {
+    borderColor: '#bfdbfe',
+    backgroundColor: '#eff6ff',
+  },
+  orgOptionIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orgOptionIconBoxSelected: {
+    backgroundColor: '#dbeafe',
+  },
+  orgOptionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  orgOptionTitleSelected: {
+    color: '#1d4ed8',
+  },
+  orgOptionSub: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  manageOrgShortcut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    marginTop: 8,
+    gap: 6,
+  },
+  manageOrgShortcutText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563eb',
   },
   loadingContainer: {
     marginTop: 60,
